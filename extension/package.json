@@ -1,0 +1,80 @@
+{
+  "name": "softgaze",
+  "displayName": "Softgaze",
+  "description": "A calm window to stay with one Claude Code session while it works. Requires the free softgaze app.",
+  "version": "0.1.0",
+  "publisher": "fabioconcina",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fabioconcina/softgaze.git"
+  },
+  "homepage": "https://github.com/fabioconcina/softgaze#readme",
+  "bugs": {
+    "url": "https://github.com/fabioconcina/softgaze/issues"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "claude-code",
+    "anthropic",
+    "focus",
+    "calm",
+    "attention",
+    "wellbeing",
+    "session"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./dist/extension.js",
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "watch": "tsc -w -p tsconfig.json",
+    "vscode:prepublish": "npm run compile",
+    "typecheck": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/vscode": "1.85.0",
+    "typescript": "7.0.2"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "softgaze.open",
+        "title": "Softgaze: Open"
+      },
+      {
+        "command": "softgaze.toggle",
+        "title": "Softgaze: Toggle (VS Code and back)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "softgaze.toggle",
+        "key": "ctrl+alt+j"
+      }
+    ],
+    "configuration": {
+      "title": "Softgaze",
+      "properties": {
+        "softgaze.port": {
+          "type": "number",
+          "default": 3133,
+          "scope": "machine",
+          "description": "Port of the softgaze server on this machine."
+        }
+      }
+    }
+  }
+}

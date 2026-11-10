@@ -1,0 +1,95 @@
+name: Release Extension
+
+# Packages the VS Code extension (extension/) into a .vsix and attaches it to a
+# GitHub Release. Trigger by pushing a tag like `ext-v0.1.0`, or run manually
+# (manual runs just upload the .vsix as a workflow artifact, no Release).
+#
+# The official VS Code Marketplace is optional: the final step publishes there
+# only if a `VSCE_PAT` secret is configured, so it silently no-ops until you add
+# one. The .vsix on the Release works in stock VS Code today via
+# "Extensions: Install from VSIX..." or `code --install-extension`.
+#
+# There is no VSCE_PAT: Azure DevOps (where the PAT would come from) needs a
+# paid Azure subscription, and global PATs stop working on 2026-12-01. The
+# Marketplace listing is updated by hand instead: download the .vsix from the
+# Release and upload it at
+# https://marketplace.visualstudio.com/manage/publishers/fabioconcina
+# (the extension's "..." menu > Update).
+on:
+  push:
+    tags:
+      - "ext-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      # The release step authenticates via GH_TOKEN, not git credentials.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No package cache: the published .vsix is built from a clean install
+      # rather than from a cache another workflow run could have written.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      # Locked, reproducible install. .npmrc sets ignore-scripts=true, so no
+      # dependency lifecycle scripts run in CI.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Builds softgaze-<version>.vsix (runs vscode:prepublish -> tsc first).
+      # vsce is pinned to an exact version (npm never reuses one), since it
+      # runs in a job holding a contents:write token. Bump by hand.
+      - name: Package VSIX
+        run: npx --yes @vscode/vsce@3.9.2 package
+
+      # Always available for download, including on manual-dispatch runs.
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: softgaze-vsix
+          path: extension/*.vsix
+
+      # On an ext-v* tag: create the GitHub Release and attach the .vsix.
+      - name: Attach .vsix to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/ext-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Release notes = this version's CHANGELOG.md section, followed by
+          # the install instructions. The CHANGELOG heading is "## X.Y.Z - date";
+          # match "## X.Y.Z " (trailing space) so 0.2.1 doesn't grab 0.2.10.
+          VERSION="${GITHUB_REF_NAME#ext-v}"
+          {
+            awk -v ver="## $VERSION " 'index($0, ver) == 1 {f=1; next} /^## / && f {exit} f' CHANGELOG.md
+            printf '%s\n' '---' '' 'Install in VS Code: download the .vsix below, then run **Extensions: Install from VSIX...** from the Command Palette, or:' '' '```' 'code --install-extension softgaze-*.vsix' '```'
+          } > RELEASE_NOTES.md
+          # --latest=false: extension releases must not steal the "Latest"
+          # pointer from the main softgaze binary releases (the README's
+          # /releases/latest download links depend on it).
+          gh release create "$GITHUB_REF_NAME" ./*.vsix \
+            --title "VS Code extension $GITHUB_REF_NAME" \
+            --latest=false \
+            --notes-file RELEASE_NOTES.md
+
+      # Optional: publish to the official Marketplace, but only if a token is set.
+      # Reuses the already-built .vsix so nothing is rebuilt.
+      - name: Publish to VS Code Marketplace
+        if: ${{ env.VSCE_PAT != '' }}
+        run: npx --yes @vscode/vsce@3.9.2 publish --packagePath ./*.vsix --pat "$VSCE_PAT"

@@ -1,0 +1,51 @@
+version: 2
+
+builds:
+  - binary: softgaze
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: binaries
+    formats:
+      - binary
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+  - id: homebrew
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+
+sboms:
+  - artifacts: binary
+    disable: false
+
+# The release workflow attests dist/checksums.txt; keep the name stable
+# instead of goreleaser's default {project}_{version}_checksums.txt.
+checksum:
+  name_template: "checksums.txt"
+
+brews:
+  - ids:
+      - homebrew
+    repository:
+      owner: fabioconcina
+      name: homebrew-softgaze
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/fabioconcina/softgaze"
+    description: "Calm window to stay with one Claude Code session while it works"
+    license: "MIT"
+
+release:
+  header: "{{ .Env.RELEASE_NOTES }}"
+
+changelog:
+  disable: true

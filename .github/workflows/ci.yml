@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26"
+          check-latest: true
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Test
+        run: go test -v -race -count=1 ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      # The release ships all six; a build tag mistake in a per-OS file
+      # would otherwise only show up at release time.
+      - name: Cross-compile
+        run: |
+          for target in darwin/amd64 darwin/arm64 linux/arm64 windows/amd64 windows/arm64; do
+            echo "$target"
+            CGO_ENABLED=0 GOOS="${target%/*}" GOARCH="${target#*/}" go build -o /dev/null .
+            CGO_ENABLED=0 GOOS="${target%/*}" GOARCH="${target#*/}" go vet ./...
+          done
+
+  # The window's renderers: plain JavaScript, tested with Node's own runner.
+  window:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Test
+        run: node --test webtest/*.test.mjs
+
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Compile
+        run: npm run compile

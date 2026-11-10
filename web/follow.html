@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Softgaze</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+html, body { margin: 0; height: 100%; background: #1a1a1a; }
+#view { height: 100%; }
+.float-bar {
+  position: fixed; right: 8px; bottom: 8px; display: flex; gap: 8px; align-items: center;
+  font: 12px 'Segoe UI', system-ui, sans-serif; color: #8a7f75;
+}
+.float-bar[hidden] { display: none; }
+.float-bar button {
+  font: inherit; color: #f0e6dc; background: #2e2e2e; border: 1px solid #3a3a3a; border-radius: 6px;
+  padding: 4px 10px; cursor: pointer;
+}
+.float-bar button:hover { border-color: #da7756; }
+.float-bar button:focus-visible { outline: 2px solid #da7756; outline-offset: 2px; }
+/* Room for the button on the bottom line. */
+body.can-float .sg-cta { padding-right: 104px; }
+/* While the switch list is open the button would cover its rows. */
+body:has(.sg-picking) .float-bar { display: none; }
+.floating { display: flex; height: 100%; align-items: center; justify-content: center; text-align: center;
+  font: 14px 'Segoe UI', system-ui, sans-serif; color: #8a7f75; padding: 16px; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div class="float-bar" id="float-bar" hidden>
+  <button id="float-btn" title="Open a small window that stays above your other windows">Keep on top</button>
+</div>
+<div class="float-bar" id="no-float" hidden></div>
+<script src="follow.js"></script>
+<script>
+(function () {
+  'use strict';
+  const SG = window.Softgaze;
+  const view = document.getElementById('view');
+  const bar = document.getElementById('float-bar');
+  const btn = document.getElementById('float-btn');
+  const note = document.getElementById('no-float');
+  let handle = SG.mount(view);
+
+  const showBar = on => { bar.hidden = !on; document.body.classList.toggle('can-float', on); };
+  // Say once why, then get out of the way.
+  const say = (text, ms) => { note.textContent = text; note.hidden = false; setTimeout(() => { note.hidden = true; }, ms); };
+
+  // In the VS Code extension's floating window: nothing to float.
+  if (window.top !== window) return;
+
+  if (SG.supported) {
+    // Edge, Chrome: a Picture-in-Picture window floats above everything.
+    showBar(true);
+    btn.addEventListener('click', floatHere);
+  } else {
+    // Firefox and others: softgaze can keep this window on top itself
+    // (Windows; Linux on X11 with wmctrl).
+    fetch('/api/follow/pin', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : {})).catch(() => ({}))
+      .then(d => {
+        if (!d.supported) {
+          say('This browser cannot keep the window on top. Edge and Chrome can.', 8000);
+          return;
+        }
+        btn.title = 'Keep this window above your other windows';
+        showBar(true);
+        btn.addEventListener('click', pin);
+      });
+  }
+
+  // Put a random mark in the window title, ask softgaze to pin the window
+  // that has it, then take the mark off again.
+  async function pin() {
+    btn.disabled = true;
+    const token = 'sg-pin-' + Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+    handle.tag(token);
+    let ok = false;
+    try {
+      const r = await fetch('/api/follow/pin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+      });
+      ok = r.ok;
+    } catch (e) { /* reported below */ }
+    handle.tag('');
+    btn.disabled = false;
+    if (ok) showBar(false);
+    else say('Could not keep this window on top.', 6000);
+  }
+
+  // Hand the live view over to the floating window; bring it back here when
+  // that window closes.
+  async function floatHere() {
+    const session = handle.session();
+    handle.destroy();
+    view.className = 'floating';
+    view.textContent = 'Following in the floating window. Keep this tab open; close the floating window to bring the view back here.';
+    showBar(false);
+    const back = () => {
+      view.className = '';
+      handle = SG.mount(view, { session });
+      showBar(true);
+    };
+    const ok = await SG.float(back, session).catch(() => false);
+    if (!ok) back();
+  }
+})();
+</script>
+</body>
+</html>

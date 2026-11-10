@@ -1,0 +1,172 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+type SSEEvent struct {
+	Event string
+	Data  string
+}
+
+type SSEBroker struct {
+	mu         sync.RWMutex
+	clients    map[chan SSEEvent]bool
+	broadcast  chan SSEEvent
+	register   chan chan SSEEvent
+	unregister chan chan SSEEvent
+	// done is closed when Run returns: nobody takes (un)registrations then.
+	done chan struct{}
+	// embedded counts the Softgaze pages connected from the VS Code
+	// extension's panel (?embed=vscode): they can bring their window
+	// forward when asked (focus_back).
+	embedded atomic.Int32
+}
+
+// Embedded is how many Softgaze pages in VS Code panels are connected.
+func (b *SSEBroker) Embedded() int { return int(b.embedded.Load()) }
+
+func NewBroker() *SSEBroker {
+	return &SSEBroker{
+		clients:    make(map[chan SSEEvent]bool),
+		broadcast:  make(chan SSEEvent, 64),
+		register:   make(chan chan SSEEvent),
+		unregister: make(chan chan SSEEvent),
+		done:       make(chan struct{}),
+	}
+}
+
+// Run serves the broker until ctx is done, then closes every client's
+// stream. Call it once.
+func (b *SSEBroker) Run(ctx context.Context) {
+	defer close(b.done)
+	pingTicker := time.NewTicker(30 * time.Second)
+	defer pingTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			b.mu.Lock()
+			for ch := range b.clients {
+				close(ch)
+				delete(b.clients, ch)
+			}
+			b.mu.Unlock()
+			return
+
+		case ch := <-b.register:
+			b.mu.Lock()
+			b.clients[ch] = true
+			b.mu.Unlock()
+			log.Printf("[sse] client connected (%d total)", len(b.clients))
+
+		case ch := <-b.unregister:
+			b.mu.Lock()
+			if _, ok := b.clients[ch]; ok {
+				close(ch)
+				delete(b.clients, ch)
+			}
+			b.mu.Unlock()
+			log.Printf("[sse] client disconnected (%d total)", len(b.clients))
+
+		case event := <-b.broadcast:
+			b.mu.RLock()
+			for ch := range b.clients {
+				select {
+				case ch <- event:
+				default:
+					// Client too slow, skip
+				}
+			}
+			b.mu.RUnlock()
+
+		case <-pingTicker.C:
+			b.mu.RLock()
+			for ch := range b.clients {
+				select {
+				case ch <- SSEEvent{Event: "ping", Data: `{"time":"` + time.Now().Format(time.RFC3339) + `"}`}:
+				default:
+				}
+			}
+			b.mu.RUnlock()
+		}
+	}
+}
+
+func (b *SSEBroker) Send(event SSEEvent) {
+	select {
+	case b.broadcast <- event:
+	default:
+		log.Printf("[sse] broadcast channel full, dropping event: %s", event.Event)
+	}
+}
+
+// SendJSON marshals payload and broadcasts it as an SSE event. Marshal failures
+// are logged: callers broadcasting transient updates can't recover meaningfully.
+func (b *SSEBroker) SendJSON(event string, payload interface{}) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("[sse] marshal %s event: %v", event, err)
+		return
+	}
+	b.Send(SSEEvent{Event: event, Data: string(data)})
+}
+
+func (b *SSEBroker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	ch := make(chan SSEEvent, 32)
+	select {
+	case b.register <- ch:
+	case <-b.done: // shutting down
+		return
+	case <-r.Context().Done():
+		return
+	}
+	// Once Run has returned nobody would take the unregistration, and the
+	// handler would hang on it, holding up the server's shutdown.
+	defer func() {
+		select {
+		case b.unregister <- ch:
+		case <-b.done:
+		}
+	}()
+	if r.URL.Query().Get("embed") == "vscode" {
+		b.embedded.Add(1)
+		defer b.embedded.Add(-1)
+	}
+
+	// Send headers now: EventSource only fires "open" once they arrive, so
+	// without this the page shows "Connecting..." until the first event
+	// (up to the 30s ping).
+	flusher.Flush()
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-ch:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Event, event.Data)
+			flusher.Flush()
+		}
+	}
+}
