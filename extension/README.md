@@ -5,6 +5,10 @@ keeps your task in sight, shows what Claude says it is doing, and changes
 color once, when it is your turn. Nothing ticks, nothing scores you, and the
 window never jumps to another session on its own.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/fabioconcina/softgaze/master/assets/working.png" alt="The softgaze window while Claude works" width="700">
+</p>
+
 This extension opens the window in VS Code and moves between it and the
 session with one key.
 

@@ -7,6 +7,17 @@ It keeps your task in sight, shows what Claude says it is doing, and changes
 color once, when it is your turn. Nothing ticks, nothing scores you, and the
 window never jumps to another session on its own.
 
+<p align="center">
+  <img src="assets/working.png" alt="The softgaze window while Claude works: the task, Claude's latest words, a teal line" width="700"><br>
+  <sub>While Claude works: your task, what it says it is doing, nothing to do.</sub>
+</p>
+
+<p align="center">
+  <img src="assets/needs-you.png" alt="The window turned orange: Claude wants to run a command" width="345">
+  <img src="assets/finished.png" alt="The window turned green: Claude is finished" width="345"><br>
+  <sub>The color changes once, when it is your turn: a question or a permission (orange), or done (green).</sub>
+</p>
+
 softgaze is a small Go server plus a VS Code extension. The server reads
 Claude Code's transcripts in `~/.claude/projects` and its PID files in
 `~/.claude/sessions`, and serves the window on `http://127.0.0.1:3133`. It
@@ -142,6 +153,10 @@ Claude Code sessions stay open for days, so "running" is not the same as
 your own history, how long a pause has to be to mark the end of a working
 day. The switch list and the arrow keys show the sessions of the current
 work period first; older ones are a click away.
+
+<p align="center">
+  <img src="assets/switch.png" alt="The switch list: three sessions with their task, state and last words" width="700">
+</p>
 
 ## Wellbeing
 
