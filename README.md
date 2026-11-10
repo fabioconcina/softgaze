@@ -209,6 +209,7 @@ make test    # go test ./..., then the window's renderers (node --test)
 make vet
 make build
 make ext
+make screenshots   # retake assets/*.png from invented sessions
 ```
 
 Pure Go, no CGO. The window is plain JavaScript with no dependencies.

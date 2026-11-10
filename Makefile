@@ -1,7 +1,7 @@
 # --match: skip the VS Code extension's ext-v* tags, which share this repo.
 VERSION ?= $(shell git describe --tags --match 'v*' --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: build build-mac test vet ext clean
+.PHONY: build build-mac test vet ext screenshots clean
 
 build:
 	go build -ldflags "-X main.version=$(VERSION)" -o softgaze .
@@ -26,3 +26,8 @@ ext:
 
 clean:
 	rm -rf softgaze softgaze.exe dist
+
+# The README screenshots in assets/, from invented sessions. Downloads
+# Playwright's Chromium on first use.
+screenshots:
+	npx --yes -p playwright-core@1.60.0 -c 'playwright-core install chromium && node scripts/screenshots.mjs'
