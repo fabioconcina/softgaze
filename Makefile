@@ -27,7 +27,7 @@ ext:
 clean:
 	rm -rf softgaze softgaze.exe dist
 
-# The README screenshots in assets/, from invented sessions. Downloads
-# Playwright's Chromium on first use.
+# The README screenshots and demo GIF in assets/, from invented sessions.
+# Downloads Playwright's Chromium on first use; the GIF needs ffmpeg.
 screenshots:
 	npx --yes -p playwright-core@1.60.0 -c 'playwright-core install chromium && node scripts/screenshots.mjs'

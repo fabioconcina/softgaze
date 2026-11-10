@@ -8,8 +8,8 @@ color once, when it is your turn. Nothing ticks, nothing scores you, and the
 window never jumps to another session on its own.
 
 <p align="center">
-  <img src="assets/working.png" alt="The softgaze window while Claude works: the task, Claude's latest words, a teal line" width="700"><br>
-  <sub>While Claude works: your task, what it says it is doing, nothing to do.</sub>
+  <img src="assets/demo.gif" alt="One turn in the softgaze window: teal while Claude works, orange when it asks to run a command, teal again, green when it is done" width="700"><br>
+  <sub>One turn: teal while Claude works, orange when it needs you, green when it is done.</sub>
 </p>
 
 <p align="center">
@@ -209,7 +209,7 @@ make test    # go test ./..., then the window's renderers (node --test)
 make vet
 make build
 make ext
-make screenshots   # retake assets/*.png from invented sessions
+make screenshots   # retake the images in assets/ from invented sessions
 ```
 
 Pure Go, no CGO. The window is plain JavaScript with no dependencies.
