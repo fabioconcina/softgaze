@@ -30,16 +30,6 @@ func TestHandleFollow(t *testing.T) {
 	if code, _ := get("/api/follow?session=..%5Cx"); code != http.StatusBadRequest {
 		t.Errorf("bad session id: %d, want 400", code)
 	}
-	if code, body := get("/api/follow/pin"); code != http.StatusOK || !strings.HasPrefix(body, `{"supported":`) {
-		t.Errorf("pin info: %d %s", code, body)
-	}
-	for _, bad := range []string{`{}`, `{"token":"x"}`, `{"token":"sg-pin-../../"}`, `not json`} {
-		w := httptest.NewRecorder()
-		srv.Mux.ServeHTTP(w, httptest.NewRequest("POST", "/api/follow/pin", strings.NewReader(bad)))
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("pin %s: %d, want 400", bad, w.Code)
-		}
-	}
 	for body, want := range map[string]int{`{"session":"..\\x"}`: http.StatusBadRequest, `{"session":"nope"}`: http.StatusNotFound} {
 		w := httptest.NewRecorder()
 		srv.Mux.ServeHTTP(w, httptest.NewRequest("POST", "/api/follow/focus", strings.NewReader(body)))

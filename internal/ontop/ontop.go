@@ -1,16 +1,15 @@
-// Package ontop keeps a window above all others, for Softgaze in
-// browsers that cannot float a window themselves (Firefox). The page puts a
-// random token in its title; Pin finds the window by it.
+// Package ontop moves between softgaze and VS Code: it brings the
+// session's editor window to the front and the Softgaze window back.
 package ontop
 
 import "errors"
 
 var (
-	// ErrUnsupported: this platform does not let softgaze keep another
-	// program's window on top.
-	ErrUnsupported = errors.New("keeping a window on top is not available on this platform")
-	// ErrNotFound: no window has the token in its title (yet).
-	ErrNotFound = errors.New("no window with that title")
+	// ErrUnsupported: softgaze does not move windows itself on this
+	// platform (the caller asks the editor's CLI instead).
+	ErrUnsupported = errors.New("moving windows is not available on this platform")
+	// ErrNotFound: no window matches.
+	ErrNotFound = errors.New("no matching window")
 	// ErrRefused: Windows kept the window from coming to the front (it
 	// only flashes in the taskbar).
 	ErrRefused = errors.New("softgaze could not bring the window to the front: Windows only flashed it in the taskbar")

@@ -111,54 +111,6 @@ func (h *Handlers) focusFor(f *parser.Follow, now time.Time) *parser.FocusStretc
 	return fo
 }
 
-// pinTokenRe is the shape of the token a Softgaze page puts in its title
-// to be found and kept on top.
-var pinTokenRe = regexp.MustCompile(`^sg-pin-[a-z0-9]{8,32}$`)
-
-// HandleFollowPinInfo says whether this machine can keep a browser window on
-// top for Softgaze: {"supported": bool}.
-func (h *Handlers) HandleFollowPinInfo(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]bool{"supported": ontop.Supported()})
-}
-
-// HandleFollowPin keeps the Softgaze window above all others, for
-// browsers that cannot float one (Firefox). Body: {"token": "sg-pin-..."},
-// the token the page has just put in its title.
-func (h *Handlers) HandleFollowPin(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&body); err != nil || !pinTokenRe.MatchString(body.Token) {
-		writeJSONError(w, "invalid token", http.StatusBadRequest)
-		return
-	}
-	if !ontop.Supported() {
-		writeJSONError(w, ontop.ErrUnsupported.Error(), http.StatusNotImplemented)
-		return
-	}
-	// The browser updates its window title a moment after the page does.
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		err := ontop.Pin(body.Token)
-		switch {
-		case err == nil:
-			writeJSON(w, map[string]bool{"pinned": true})
-			return
-		case !errors.Is(err, ontop.ErrNotFound):
-			writeJSONError(w, err.Error(), http.StatusInternalServerError)
-			return
-		case time.Now().After(deadline):
-			writeJSONError(w, "window not found", http.StatusNotFound)
-			return
-		}
-		select {
-		case <-r.Context().Done():
-			return
-		case <-time.After(150 * time.Millisecond):
-		}
-	}
-}
-
 // HandleFollowFocus brings the user to the session's VS Code window and its
 // Claude Code tab. Body: {"session": "<id>"}. On Windows softgaze finds the
 // editor window whose title names the project and brings it forward (never

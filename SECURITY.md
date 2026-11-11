@@ -21,7 +21,7 @@ say on a local page. It can also bring windows to the front. Issues that
 are in scope include:
 
 - anything that lets a web page, another user, or a remote host read that
-  data or trigger the window's actions (focusing or pinning windows)
+  data or trigger the window's actions (focusing windows)
 - softgaze making a network request to any other host
 - tampering with release artifacts
 - the VS Code extension being redirected or abused by an untrusted workspace

@@ -72,7 +72,6 @@ const srv = http.createServer((req, res) => {
   if (p === '/api/events') { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(': hi\n\n'); streams.add(res); req.on('close', () => streams.delete(res)); return; }
   if (p === '/api/follow') return json({ session: frames[current] });
   if (p === '/api/follow/sessions') return json({ sessions: [frames[current], ...others], current: ['a1', 'b2', 'c3'], since: ago(95), break_minutes: 65, learned: true, focused_minutes: 132 });
-  if (p === '/api/follow/pin') return json({ supported: false });
   if (p.startsWith('/api/')) return json({});
   const file = p === '/' ? 'follow.html' : p.slice(1);
   try { const b = readFileSync(web + '/' + file); res.writeHead(200, { 'Content-Type': types[file.split('.').pop()] || 'text/plain' }); res.end(b); }

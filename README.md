@@ -124,8 +124,7 @@ problem.
 
 Open it with **Softgaze: Open** in VS Code. It gets a VS Code window of its
 own, with a locked editor group so files never open beside it. A browser on
-`http://127.0.0.1:3133` works too, and in Chrome or Edge **Keep on top**
-opens a small Picture-in-Picture window that floats above everything else.
+`http://127.0.0.1:3133` works too.
 
 The window starts empty and locks onto the session you prompt next. From
 then on it stays there until you switch.
@@ -222,8 +221,8 @@ Pure Go, no CGO. The window is plain JavaScript with no dependencies.
   `followcache.go`), work periods and runs of work (`workperiod.go`), focus
   stretches (`focus.go`).
 - `internal/server`: the HTTP API (`/api/follow`, `/api/follow/sessions`,
-  `/api/follow/focus`, `/api/follow/back`, `/api/follow/pin`,
-  `/api/attention/editor`, `/api/attention/page`), the event stream, and the
+  `/api/follow/focus`, `/api/follow/back`, `/api/attention/editor`,
+  `/api/attention/page`), the event stream, and the
   host and origin guards.
 - `internal/watcher`: watches transcripts and PID files and tells the window
   to refresh.

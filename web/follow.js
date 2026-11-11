@@ -1,6 +1,5 @@
 // Softgaze: a small window that keeps you with your task while Claude
-// works, meant to float above other windows (Document Picture-in-Picture).
-// Plain JS, no dependencies, styles included. Used by follow.html.
+// works. Plain JS, no dependencies, styles included. Used by follow.html.
 //
 // Design rules, from the research on focus and interruptions:
 // - Keep the goal in sight: your task stays on screen, so it stays active in
@@ -367,7 +366,6 @@
     container.className = 'sg-root sg-none';
     container.innerHTML = '<div class="sg-empty">Connecting...</div>';
     let es = null, stopped = false, retry = 2, offline = false, locked = opts.session || null, shown = '';
-    let titleTag = ''; // appended to the title, so softgaze can find this window to keep it on top
 
     // When the window is too small for everything, drop the least important
     // lines whole (the hint, the question's context, the answer options,
@@ -405,9 +403,7 @@
       while (!fits() && lines > 2) head.style.webkitLineClamp = String(--lines);
     }
     const win = doc.defaultView;
-    // Timers run in the window being shown. A floating window's script lives
-    // in the tab that opened it, and that tab is hidden: its own timers are
-    // throttled to about once a minute (or frozen by sleeping tabs).
+    // Timers run in the window being shown.
     const W = win || window;
     if (win) win.addEventListener('resize', fit);
 
@@ -483,7 +479,7 @@
         paintFocus();
         fit(); // also forces layout now, so a fresh window draws it
       }
-      doc.title = v.title + (titleTag ? ' ' + titleTag : '');
+      doc.title = v.title;
     }
 
     let inflight = false, again = false, last = 0, timer = null;
@@ -581,11 +577,9 @@
     // F: full screen. In the VS Code extension's window the page is framed
     // and cannot take the screen itself, so it asks the extension, which
     // runs VS Code's Toggle Full Screen on that window. A browser window
-    // uses the browser's own full screen (a Picture-in-Picture window has none).
+    // uses the browser's own full screen.
     function toggleFullScreen() {
-      if (!win || win === window) {
-        if (window.top !== window) { window.parent.postMessage({ type: 'softgaze:fullscreen' }, '*'); return; }
-      }
+      if (window.top !== window) { window.parent.postMessage({ type: 'softgaze:fullscreen' }, '*'); return; }
       if (doc.fullscreenElement) doc.exitFullscreen().catch(() => {});
       else if (doc.documentElement.requestFullscreen) doc.documentElement.requestFullscreen().catch(() => {});
     }
@@ -734,11 +728,6 @@
     load();
     return {
       session: () => locked,
-      // Marks the window title (or clears the mark with '').
-      tag(s) {
-        titleTag = s || '';
-        doc.title = doc.title.replace(/ sg-pin-[a-z0-9]+$/, '') + (titleTag ? ' ' + titleTag : '');
-      },
       destroy() {
         stopped = true;
         W.clearInterval(tick);
@@ -759,50 +748,6 @@
     };
   }
 
-  // Firefox (159) exposes Document Picture-in-Picture, but its window stays
-  // empty: the view is in the document, it is just never drawn. Firefox gets
-  // the small regular window instead, which it draws fine.
-  const supported = typeof window.documentPictureInPicture !== 'undefined' && !/Firefox\//.test(navigator.userAgent);
-  let pip = null;
-
-  // Opens the view in a floating window that stays above other apps. Must be
-  // called from a click. Resolves to false when the browser cannot float a
-  // window (the caller then opens follow.html as a small popup).
-  async function float(onClose, session) {
-    if (!supported) return false;
-    if (pip && !pip.closed) return true; // already floating
-    const w = await window.documentPictureInPicture.requestWindow({ width: 440, height: 180 });
-    pip = w;
-    let handle = null, root = null;
-    // Puts the view into the window's current document; called again later
-    // in case the browser finishes setting that document up after opening.
-    const attach = () => {
-      const doc = w.document;
-      if (!doc || !doc.body || (root && doc.body.contains(root))) return;
-      if (handle) handle.destroy();
-      const st = doc.createElement('style');
-      st.textContent = 'html, body { margin: 0; min-height: 100vh; background: #1a1a1a; }';
-      (doc.head || doc.documentElement).appendChild(st);
-      root = doc.createElement('div');
-      doc.body.appendChild(root);
-      handle = mount(root, { session: (handle && handle.session()) || session });
-    };
-    attach();
-    w.addEventListener('load', attach);
-    const watch = setInterval(() => { if (!w.closed) attach(); }, 1000);
-    const closed = () => {
-      clearInterval(watch);
-      if (handle) handle.destroy();
-      if (pip === w) pip = null;
-      if (onClose) onClose();
-    };
-    // pagehide also fires if the document is replaced while the window stays
-    // open; only a closed window ends the view.
-    w.addEventListener('pagehide', () => setTimeout(() => { if (w.closed) closed(); }, 0));
-    const closedPoll = setInterval(() => { if (w.closed) { clearInterval(closedPoll); if (pip === w) closed(); } }, 1000);
-    return true;
-  }
-
   // _test: the pure renderers, for webtest/follow.test.mjs.
-  window.Softgaze = { mount, float, supported, _test: { view, pickerHTML, hold, readFor } };
+  window.Softgaze = { mount, _test: { view, pickerHTML, hold, readFor } };
 })();

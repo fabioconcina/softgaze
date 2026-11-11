@@ -29,8 +29,6 @@ func New(claudeDir string, st *store.Store, webFS fs.FS) *Server {
 	mux.HandleFunc("GET /api/info", handlers.HandleInfo)
 	mux.HandleFunc("GET /api/follow", handlers.HandleFollow)
 	mux.HandleFunc("GET /api/follow/sessions", handlers.HandleFollowSessions)
-	mux.HandleFunc("GET /api/follow/pin", handlers.HandleFollowPinInfo)
-	mux.HandleFunc("POST /api/follow/pin", handlers.HandleFollowPin)
 	mux.HandleFunc("POST /api/follow/focus", handlers.HandleFollowFocus)
 	mux.HandleFunc("POST /api/follow/back", handlers.HandleFollowBack)
 	mux.HandleFunc("POST /api/attention/editor", handlers.HandleAttentionEditor)

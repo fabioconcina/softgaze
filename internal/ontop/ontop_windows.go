@@ -5,7 +5,6 @@ package ontop
 import (
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -16,7 +15,6 @@ import (
 var (
 	user32                  = windows.NewLazySystemDLL("user32.dll")
 	procGetWindowTextW      = user32.NewProc("GetWindowTextW")
-	procSetWindowPos        = user32.NewProc("SetWindowPos")
 	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
 	procBringWindowToTop    = user32.NewProc("BringWindowToTop")
 	procShowWindow          = user32.NewProc("ShowWindow")
@@ -24,18 +22,11 @@ var (
 	procAttachThreadInput   = user32.NewProc("AttachThreadInput")
 	procSwitchToThisWindow  = user32.NewProc("SwitchToThisWindow")
 	procSendInput           = user32.NewProc("SendInput")
-	procGetWindowLongW      = user32.NewProc("GetWindowLongW")
 	procIsWindow            = user32.NewProc("IsWindow")
 )
 
 const (
-	hwndTopmost   = ^uintptr(0) // HWND_TOPMOST, (HWND)-1
-	swpNoSize     = 0x0001
-	swpNoMove     = 0x0002
-	swpNoActivate = 0x0010
-	swRestore     = 9
-	gwlExStyle    = ^uintptr(19) // GWL_EXSTYLE, -20
-	wsExTopmost   = 0x0008
+	swRestore = 9
 )
 
 type topWindow struct {
@@ -87,33 +78,14 @@ func exeOf(h windows.HWND) string {
 	return filepath.Base(windows.UTF16ToString(path[:size]))
 }
 
-// Supported reports whether Pin can work here.
-func Supported() bool { return true }
-
-// Pin keeps the visible top-level window whose title contains token above
-// all other windows (the same as PowerToys' Always On Top), without moving,
-// resizing or focusing it.
-func Pin(token string) error {
-	for _, w := range visibleWindows() {
-		if strings.Contains(w.title, token) {
-			if r, _, err := procSetWindowPos.Call(uintptr(w.h), hwndTopmost, 0, 0, 0, 0, swpNoMove|swpNoSize|swpNoActivate); r == 0 {
-				return err
-			}
-			return nil
-		}
-	}
-	return ErrNotFound
-}
-
 // Focus brings to the front the first visible window that match accepts
 // (given its executable and title), restoring it if minimized. It skips
 // the window in front, the one the user asked from (Softgaze itself, which
-// may be a VS Code window named after the same project), and windows kept
-// on top (a browser's floating Softgaze window).
+// may be a VS Code window named after the same project).
 func Focus(match func(app, title string) bool) error {
 	from := windows.GetForegroundWindow()
 	for _, w := range visibleWindows() {
-		if w.h == from || isTopmost(w.h) {
+		if w.h == from {
 			continue
 		}
 		if match(exeOf(w.h), w.title) {
@@ -148,11 +120,6 @@ func (a Window) App() string {
 // Activate restores the window if minimized and brings it to the front
 // with the keyboard, reporting whether it got there.
 func (a Window) Activate() bool { return a.exists() && activate(windows.HWND(a)) }
-
-func isTopmost(h windows.HWND) bool {
-	ex, _, _ := procGetWindowLongW.Call(uintptr(h), gwlExStyle)
-	return ex&wsExTopmost != 0
-}
 
 // mouseInput is Windows' INPUT with a MOUSEINPUT (type 0, INPUT_MOUSE): the
 // inner struct's alignment puts it at the offset C does on 32 and 64 bits.
