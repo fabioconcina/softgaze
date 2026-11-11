@@ -124,6 +124,15 @@
 .sg-li { position: relative; padding-left: 1.4em; }
 .sg-li + .sg-li { margin-top: 0.25em; }
 .sg-mk { position: absolute; left: 0; width: 1.1em; text-align: right; color: var(--sg-dim); font-variant-numeric: tabular-nums; }
+/* A table: quiet column heads and a hairline between rows, no grid. It is
+   as wide as its columns (the wrapper takes the message's width). */
+.sg-table { border-collapse: collapse; margin: 0.15em 0; font-size: 0.92em; white-space: normal; }
+.sg-table th, .sg-table td { text-align: left; vertical-align: top; padding: 0.2em 1.2em 0.2em 0; }
+.sg-table th:last-child, .sg-table td:last-child { padding-right: 0; }
+.sg-table th { color: var(--sg-dim); font-weight: 600; font-size: 0.9em; border-bottom: 1px solid rgba(255, 255, 255, 0.14); }
+.sg-table tbody tr + tr td { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+/* A message with a table, cut to fit: whole rows and lines go, and "…" says so. */
+.sg-headline.sg-cut::after { content: '…'; color: var(--sg-dim); }
 /* Your turn, and Claude's final message is longer than the window: it scrolls. */
 .sg-root .sg-headline.sg-scroll { display: block; flex: 1 1 0; min-height: 3em; overflow-y: auto; padding-right: 0.4em; }
 /* Tools by name only: after each earlier message, and since the latest one. */
@@ -163,17 +172,49 @@
 
   const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ESC[c]);
-  // Claude's message as blocks: its lines, a gap for each empty line, and
-  // list items ("• " or "2. ", two leading spaces per nesting level) with
-  // their marker set apart.
+  // A table row as softgaze passes it on ("| a | b |"; the |---| rule line
+  // is already gone) and its cells, with "\|" kept as a pipe.
+  const isRow = l => /^\s*\|.*\|/.test(l);
+  const cells = l => l.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+  // Where there is no room for a table (earlier messages, the switch list):
+  // each row as its cells in a line, "a · b".
+  const rowsAsText = s => String(s).split('\n').map(l => (isRow(l) ? cells(l).filter(Boolean).join(' · ') : l)).join('\n');
+  // Rows in a run make a table; the first is its head (markdown tables
+  // always have one), unless the run is the cut-off rest of a table.
+  function tableHTML(rows, head) {
+    const cols = Math.max(...rows.map(r => r.length));
+    const tr = (r, tag) => '<tr>' + Array.from({ length: cols }, (_, k) => `<${tag}>${esc(r[k] || '')}</${tag}>`).join('') + '</tr>';
+    return '<div class="sg-tw"><table class="sg-table">' + (head ? `<thead>${tr(rows[0], 'th')}</thead>` : '') +
+      `<tbody>${rows.slice(head ? 1 : 0).map(r => tr(r, 'td')).join('')}</tbody></table></div>`;
+  }
+  // Claude's message as blocks: its lines, a gap for each empty line, list
+  // items ("• " or "2. ", two leading spaces per nesting level) with their
+  // marker set apart, and tables.
   function msgHTML(text) {
-    return text.split('\n').map(l => {
-      if (!l.trim()) return '<div class="sg-gap"></div>';
+    const lines = text.split('\n');
+    // A message cut to fit starts with "…" or ends with " …": set apart
+    // from a table row, so the row still reads as one.
+    let cut = false, more = false;
+    if (lines[0].startsWith('…') && isRow(lines[0].slice(1))) { lines[0] = lines[0].slice(1); cut = true; }
+    const end = lines.length - 1;
+    if (isRow(lines[end]) && lines[end].endsWith(' …')) { lines[end] = lines[end].slice(0, -2); more = true; }
+    let html = cut ? '<div>…</div>' : '';
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (isRow(l)) {
+        const rows = [], start = i;
+        while (i < lines.length && isRow(lines[i])) rows.push(cells(lines[i++]));
+        i--;
+        html += tableHTML(rows, !(cut && start === 0));
+        continue;
+      }
+      if (!l.trim()) { html += '<div class="sg-gap"></div>'; continue; }
       const m = /^( *)(•|\d+\.) (.*)$/.exec(l);
-      if (!m) return `<div>${esc(l)}</div>`;
+      if (!m) { html += `<div>${esc(l)}</div>`; continue; }
       const lvl = Math.min(3, m[1].length >> 1);
-      return `<div class="sg-li"${lvl ? ` style="margin-left:${lvl * 1.4}em"` : ''}><span class="sg-mk">${esc(m[2])}</span>${esc(m[3])}</div>`;
-    }).join('');
+      html += `<div class="sg-li"${lvl ? ` style="margin-left:${lvl * 1.4}em"` : ''}><span class="sg-mk">${esc(m[2])}</span>${esc(m[3])}</div>`;
+    }
+    return html + (more ? '<div>…</div>' : '');
   }
 
   const ms = iso => { const t = iso ? Date.parse(iso) : NaN; return isNaN(t) ? 0 : t; };
@@ -286,8 +327,8 @@
     }
     // What Claude said before the headline, kept in every state.
     const tr = f.trail || [];
-    const item = t => typeof t === 'string' ? `<div>${esc(t)}</div>`
-      : `<div${t.kind === 'tools' ? ' class="sg-tl"' : ''}>${esc(t.text.replace(/\n\s*\n/g, '\n'))}</div>`;
+    const item = t => typeof t === 'string' ? `<div>${esc(rowsAsText(t))}</div>`
+      : `<div${t.kind === 'tools' ? ' class="sg-tl"' : ''}>${esc(rowsAsText(t.text).replace(/\n\s*\n/g, '\n'))}</div>`;
     const trail = tr.length ? `<div class="sg-trail">${tr.map(item).join('')}</div>` : '';
     // The tools used since the latest message, while Claude is still at it,
     // and only once that message is half a minute old: then it says Claude
@@ -338,6 +379,7 @@
   function lastWords(text) {
     const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
     let t = lines.length ? lines[lines.length - 1] : '';
+    t = rowsAsText(t);
     if (t.length > 220) { t = t.slice(-220); const i = t.indexOf(' '); t = '…' + (i > 0 ? t.slice(i + 1) : t); }
     return t;
   }
@@ -388,7 +430,7 @@
     function fit() {
       container.querySelectorAll('.sg-drop').forEach(el => el.classList.remove('sg-drop'));
       const head = container.querySelector('.sg-headline');
-      if (head) { head.style.webkitLineClamp = ''; head.classList.remove('sg-scroll'); }
+      if (head) { head.style.webkitLineClamp = ''; head.classList.remove('sg-scroll', 'sg-cut'); }
       const fits = () => container.scrollHeight <= container.clientHeight;
       const drop = sel => { const el = container.querySelector(sel); if (el) el.classList.add('sg-drop'); };
       // Earlier messages go oldest first, down to the last two; then your
@@ -407,6 +449,22 @@
       if (fits() || !head) return;
       // A final message is kept whole: it scrolls rather than being cut.
       if (container.classList.contains('sg-finished') || container.classList.contains('sg-ended')) { head.classList.add('sg-scroll'); return; }
+      // A table is not lines, so the clamp cannot cut inside it: drop its
+      // last rows, then whole blocks, from the end until the rest fits.
+      if (head.querySelector('table')) {
+        const parts = [];
+        for (const el of head.children) {
+          parts.push(el);
+          if (el.classList.contains('sg-tw')) parts.push(...el.querySelectorAll('tbody tr'));
+        }
+        const end = parts.length - 1;
+        let last = end;
+        head.classList.add('sg-cut'); // room for its "…" while measuring
+        while (!fits() && last > 0) parts[last--].classList.add('sg-drop');
+        while (last > 0 && parts[last].classList.contains('sg-gap')) parts[last--].classList.add('sg-drop');
+        if (last === end) head.classList.remove('sg-cut');
+        return;
+      }
       const lh = parseFloat((doc.defaultView || window).getComputedStyle(head).lineHeight) || 20;
       const over = container.scrollHeight - container.clientHeight;
       // Gaps between paragraphs and lists are not lines: trim until it fits.

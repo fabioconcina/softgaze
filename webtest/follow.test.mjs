@@ -27,7 +27,7 @@ function assertInert(html, what) {
 function session(state, extra = {}) {
   return {
     session_id: 's-' + state, state, project: P, cwd: P, task: P, prompt: P, running: true,
-    headline: `${P}\n\n• ${P}\n  2. ${P}`, headline_at: P, turn_start: P, turn_end: P,
+    headline: `${P}\n\n• ${P}\n  2. ${P}\n| ${P} | x |\n| y \\| z | ${P} |`, headline_at: P, turn_start: P, turn_end: P,
     trail: [P, { kind: 'tools', text: P }, { kind: 'msg', text: P }],
     tools: P, activity: P, unsure: P, at_it_since: P,
     background: { what: P, since: P, count: 2 },
@@ -58,7 +58,8 @@ test('every state escapes every field', () => {
 
 test('the switch list escapes every field', () => {
   const { pickerHTML } = renderers();
-  const list = [session('working'), session('finished'), session('needs_you', { state: P })];
+  const list = [session('working'), session('finished'), session('needs_you', { state: P }),
+    session('ended', { headline: `x\n| ${P} | y |` })];
   const pick = { list, current: new Set(['s-working']), since: P, breakMin: 120, learned: true, all: false, minutes: 30 };
   assertInert(pickerHTML(pick, 's-working'), 'current work period');
   assertInert(pickerHTML({ ...pick, all: true }, 's-working'), 'all sessions');
@@ -131,4 +132,29 @@ test('a silent turn shows what Claude last set out to do', () => {
   const between = headline({ ...base, activity: 'thinking', doing: 'writing notes.md' });
   assert.match(between, /writing notes\.md/);
   assert.doesNotMatch(between, /starting on it/);
+});
+
+// Claude's tables arrive as "| a | b |" rows (softgaze drops the |---|
+// line): a run of them is a table, its first row the head. A message cut to
+// fit keeps its "…" outside the table.
+test('table rows become a table', () => {
+  const { view, pickerHTML } = renderers();
+  const headline = text => /<div class="sg-headline">(.*)<\/div>/s.exec(view({
+    session_id: 's', state: 'working', project: 'p', turn_start: 't1', headline: text, trail: [],
+  }).html)[1];
+  const t = headline('Checked:\n| Request | Result |\n| No header | 403 |\n| a \\| b | 401 |\nDone.');
+  assert.match(t, /<div>Checked:<\/div><div class="sg-tw"><table class="sg-table"><thead><tr><th>Request<\/th><th>Result<\/th><\/tr><\/thead>/);
+  assert.match(t, /<tbody><tr><td>No header<\/td><td>403<\/td><\/tr><tr><td>a \| b<\/td><td>401<\/td><\/tr><\/tbody><\/table><\/div><div>Done\.<\/div>/);
+  // Cut at the end, and at the start (no head: the rows are the rest of a table).
+  assert.match(headline('Before\n| A | B |\n| 1 | 2 | …'), /<td>2<\/td><\/tr><\/tbody><\/table><\/div><div>…<\/div>/);
+  const rest = headline('…| 3 | 4 |\n| 5 | 6 |\nNext.');
+  assert.match(rest, /^<div>…<\/div><div class="sg-tw"><table class="sg-table"><tbody><tr><td>3<\/td>/);
+  assert.doesNotMatch(rest, /<th>/);
+  // Earlier messages and the switch list have no room for a table: a row
+  // reads as its cells in a line.
+  const trail = view({ session_id: 's', state: 'working', project: 'p', turn_start: 't1', headline: 'x',
+    trail: ['| A | B |\n| 1 | 2 |', { kind: 'msg', text: 'See:\n| C | D |' }] }).html;
+  assert.match(trail, /<div class="sg-trail"><div>A · B\n1 · 2<\/div><div>See:\nC · D<\/div><\/div>/);
+  const pick = { list: [{ session_id: 's', state: 'finished', project: 'p', headline: 'x\n| The page | 302 |' }], all: true };
+  assert.match(pickerHTML(pick, 'other'), /<span class="sg-row-last">The page · 302<\/span>/);
 });
