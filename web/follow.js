@@ -139,6 +139,9 @@
 .sg-trail > .sg-tl, .sg-tools { font-size: 0.85em; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .sg-tools { font-size: 0.8em; color: var(--sg-dim); }
 .sg-tl::before, .sg-tools::before { content: '\\2192  '; }
+/* What Claude is doing in a long silence: words, so no arrow. */
+.sg-tools.sg-now { opacity: 1; }
+.sg-tools.sg-now::before { content: none; }
 /* What Claude said before the headline, in every state. */
 .sg-trail { display: flex; flex-direction: column; gap: 0.3em; font-size: 0.8em; color: var(--sg-dim);
   border-left: 2px solid #3a3a3a; padding-left: 0.6em; }
@@ -256,6 +259,57 @@
   }
   const liveMins = iso => `<span data-sg-since="${esc(iso)}">${mins(Date.now() - ms(iso))}</span>`;
 
+  // A long silence explained: while Claude works and has said nothing new
+  // for half a minute, one quiet line on what it is doing. Its wording
+  // changes only when the kind of wait does (form), its minutes once a
+  // minute, so it never ticks along:
+  // - long: one step has run a minute or more ("Run the test suite · 6 min so far");
+  // - stuck: nothing new in the transcript for STUCK_AFTER;
+  // - kinds: the kinds of steps since its last words ("reading and editing").
+  const LONG_STEP = 60000, STUCK_AFTER = 15 * 60000;
+  const KINDS = {
+    Read: 'reading', NotebookRead: 'reading', Grep: 'searching', Glob: 'searching', ToolSearch: 'searching',
+    Edit: 'editing', MultiEdit: 'editing', Write: 'editing', NotebookEdit: 'editing',
+    Bash: 'running commands', PowerShell: 'running commands', WebFetch: 'reading the web', WebSearch: 'searching the web',
+    Agent: 'working with subagents', Task: 'working with subagents', TodoWrite: '',
+  };
+  // The kinds of steps in a tools line ("Read ×3 · Edit · Bash"), in the
+  // order Claude first took them, at most four: "reading, editing and
+  // running commands".
+  function kindsText(tools) {
+    const seen = [];
+    for (const part of String(tools || '').split(' · ')) {
+      const name = part.replace(/ ×\d+$/, '').trim();
+      const k = name && (name in KINDS ? KINDS[name] : 'using tools');
+      if (k && !seen.includes(k)) seen.push(k);
+    }
+    const s = seen.slice(0, 4);
+    return s.length < 2 ? s.join('') : s.slice(0, -1).join(', ') + ' and ' + s[s.length - 1];
+  }
+  const upper = s => s.charAt(0).toUpperCase() + s.slice(1);
+  function nowLine(f, now) {
+    if (f.held) return null;
+    const quietSince = ms(f.headline_at) || ms(f.turn_start);
+    if (!quietSince || now - quietSince <= TOOLS_AFTER) return null;
+    const step = f.activity && f.activity !== 'thinking' && f.activity_since ? f.activity : '';
+    const last = ms(f.last_activity);
+    const stuck = last > 0 && now - last >= STUCK_AFTER;
+    if (step && now - ms(f.activity_since) >= LONG_STEP) {
+      // Without words yet, the message area already names the step.
+      const html = (f.headline ? esc(upper(step)) + ' · ' : '') + liveMins(f.activity_since) + ' so far' +
+        (stuck ? ', with nothing new. It may be stuck.' : '');
+      return { form: (stuck ? 'stuck:' : 'long:') + step, html };
+    }
+    if (stuck) {
+      return { form: 'stuck', html: `Nothing new for ${liveMins(f.last_activity)}. Claude may be thinking at length, or stuck.` };
+    }
+    const kinds = kindsText(f.tools);
+    if (!kinds) return null;
+    // Without words yet, the turn's minutes are already at the top.
+    const html = f.headline ? `Since its last words: ${esc(kinds)} · ${liveMins(f.headline_at)}` : esc(upper(kinds)) + ' so far';
+    return { form: 'kinds:' + kinds, html };
+  }
+
   function injectCSS(doc) {
     if (doc.getElementById('sg-style')) return;
     const st = doc.createElement('style');
@@ -333,8 +387,11 @@
     // The tools used since the latest message, while Claude is still at it,
     // and only once that message is half a minute old: then it says Claude
     // is still working, rather than ticking along under its words.
+    // While it works, a line in words takes its place (see nowLine).
     const quiet = !f.headline_at || Date.now() - ms(f.headline_at) > TOOLS_AFTER;
-    const tools = f.tools && quiet && f.state !== 'finished' && f.state !== 'ended' ? `<div class="sg-tools">${esc(f.tools)}</div>` : '';
+    const doingNow = f.state === 'working' ? nowLine(f, Date.now()) : null;
+    const tools = doingNow ? `<div class="sg-tools sg-now" data-sg-form="${esc(doingNow.form)}">${doingNow.html}</div>`
+      : f.tools && quiet && f.state !== 'finished' && f.state !== 'ended' && f.state !== 'working' ? `<div class="sg-tools">${esc(f.tools)}</div>` : '';
     const html = `
       <div class="sg-top"><button class="sg-project sg-switch" data-sg-act="pick"><span class="sg-name">${esc(f.project)}</span><span class="sg-chev" aria-hidden="true">&#9662;</span></button><button class="sg-editor" data-sg-act="editor">VS Code &#8599;</button><span class="sg-state">${label}</span></div>
       ${(f.task || f.prompt) ? `<div class="sg-task"><b>Your task:</b> ${esc(f.task || f.prompt)}</div>` : ''}
@@ -803,11 +860,13 @@
       });
       if (!picking) paintFocus();
       if (!picking && latest !== undefined && evening() !== container.classList.contains('sg-evening')) { shown = ''; render(latest); }
-      // Claude has gone quiet in one long step (no new events): show the
-      // tools line once it is due.
-      // (Not while a message is held: the tools line stays off until it goes.)
-      if (!picking && !holdTimer && latest && latest.tools && latest.state === 'working' && !container.querySelector('.sg-tools')
-          && now - ms(latest.headline_at) > TOOLS_AFTER) { shown = ''; render(latest); }
+      // Claude has gone quiet (no new events): the line on what it is
+      // doing appears, or changes its wording, when due.
+      // (Not while a message is held: the line stays off until it goes.)
+      if (!picking && !holdTimer && latest && latest.state === 'working') {
+        const want = nowLine(latest, now), el = container.querySelector('.sg-now');
+        if ((want ? want.form : '') !== (el ? el.dataset.sgForm : '')) { shown = ''; render(latest); }
+      }
     }, 20000);
     // Safety net for a missed event (e.g. a status change during a reconnect).
     const poll = W.setInterval(soon, 30000);

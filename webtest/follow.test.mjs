@@ -24,6 +24,8 @@ function assertInert(html, what) {
   assert.ok(html.includes(ESCAPED), `${what}: the text was not shown at all`);
 }
 
+const ago = s => new Date(Date.now() - s * 1000).toISOString();
+
 function session(state, extra = {}) {
   return {
     session_id: 's-' + state, state, project: P, cwd: P, task: P, prompt: P, running: true,
@@ -42,6 +44,8 @@ test('every state escapes every field', () => {
     working: session('working'),
     'working, no narration yet': session('working', { headline: '' }),
     'working, a newer message waiting': session('working', { held: true }),
+    'working, one long step': session('working', { headline_at: ago(300), activity_since: ago(120), last_activity: ago(5) }),
+    'working, stuck': session('working', { headline_at: ago(1000), activity_since: ago(1000), last_activity: ago(1000) }),
     'needs you (approval)': session('needs_you', { needs_you: { kind: 'approval', text: P, options: [P, P], context: P } }),
     'needs you (question)': session('needs_you', { needs_you: { kind: 'question', text: P, options: [P], context: P } }),
     finished: session('finished', { needs_you: { kind: 'reply', text: P } }),
@@ -132,6 +136,40 @@ test('a silent turn shows what Claude last set out to do', () => {
   const between = headline({ ...base, activity: 'thinking', doing: 'writing notes.md' });
   assert.match(between, /writing notes\.md/);
   assert.doesNotMatch(between, /starting on it/);
+});
+
+// A long silence explained: after half a minute without new words, one
+// line on what Claude is doing, in words; its wording changes only with the
+// kind of wait.
+test('a long silence says what Claude is doing', () => {
+  const { view } = renderers();
+  const base = {
+    session_id: 's', state: 'working', project: 'p', turn_start: ago(1200), headline: 'Checking the firewall.',
+    headline_at: ago(240), trail: [], tools: 'Read ×3 · Grep · Edit ×2 · Bash · TodoWrite', last_activity: ago(5),
+  };
+  const line = f => {
+    const m = /<div class="sg-tools sg-now" data-sg-form="([^"]*)">(.*?)<\/div>/.exec(view(f).html);
+    return m && { form: m[1], text: m[2].replace(/<[^>]+>/g, '') };
+  };
+  // Many short steps: their kinds, in the order taken, and the minutes since its words.
+  assert.deepEqual(line({ ...base, activity: 'thinking' }),
+    { form: 'kinds:reading, searching, editing and running commands', text: 'Since its last words: reading, searching, editing and running commands · 4 min' });
+  // One step a minute or longer: that step, in Claude's words.
+  assert.deepEqual(line({ ...base, activity: 'Run the test suite', activity_since: ago(370) }),
+    { form: 'long:Run the test suite', text: 'Run the test suite · 6 min so far' });
+  // A short step is not a long wait yet.
+  assert.equal(line({ ...base, activity: 'editing a.go', activity_since: ago(10) }).form, 'kinds:reading, searching, editing and running commands');
+  // Nothing new in the transcript for a long time: it may be stuck.
+  assert.match(line({ ...base, activity: 'thinking', last_activity: ago(1000) }).text, /^Nothing new for 16 min\. Claude may be thinking at length, or stuck\.$/);
+  assert.match(line({ ...base, activity: 'Deploy', activity_since: ago(1000), last_activity: ago(1000) }).text, /^Deploy · 16 min so far, with nothing new\. It may be stuck\.$/);
+  // Not yet: the message is under half a minute old, or held for reading.
+  assert.equal(line({ ...base, headline_at: ago(10) }), null);
+  assert.equal(line({ ...base, held: true }), null);
+  // No words yet this turn: the message area names the step, the top the minutes.
+  assert.equal(line({ ...base, headline: '', headline_at: undefined, activity: 'Run the test suite', activity_since: ago(130) }).text, '2 min so far');
+  assert.equal(line({ ...base, headline: '', headline_at: undefined, tools: 'Read', activity: 'thinking' }).text, 'Reading so far');
+  // Other states keep the plain tools line.
+  assert.match(view({ ...base, state: 'background', background: { what: 'x', since: ago(60), count: 1 } }).html, /<div class="sg-tools">Read ×3/);
 });
 
 // Claude's tables arrive as "| a | b |" rows (softgaze drops the |---|

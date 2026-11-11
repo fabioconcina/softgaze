@@ -33,6 +33,12 @@ has said, then where things stand.
   turn has run. Nothing to do until the color changes. A message stays
   until you have had time to read it (3 s plus a quarter second a word, at
   most 45 s); a newer one waits, marked by a faint dot after the minutes.
+  When Claude has said nothing new for half a minute, a quiet line under
+  its words says what it is doing: a step that has run a minute or more
+  ("Run the test suite · 6 min so far"), or else the kinds of steps since
+  its last words ("reading, searching and editing · 4 min"). After 15
+  minutes with nothing new in the transcript, it says Claude may be stuck.
+  The line changes its wording only when the kind of wait does.
 - **Needs you** (warm orange): a question or a permission request, with its
   options.
 - **Finished** (green): your turn, with how long the turn took. **Stopped**
