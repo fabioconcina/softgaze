@@ -54,7 +54,7 @@
 /* A long run without a pause: a break would fit here (shown once per run). */
 .sg-break { font-size: 0.85em; color: var(--sg-text); }
 /* The minutes of the work period, in the switch list. */
-.sg-today { color: var(--sg-dim); font-size: 0.8em; padding: 0 0.4em; }
+.sg-today { color: var(--sg-dim); font-size: 0.8em; margin-bottom: 0.2em; }
 .sg-root.sg-ended { border-top-color: #5a5048; }
 /* Can't tell: no state color, since softgaze cannot back one. */
 .sg-root.sg-unsure { border-top: 3px dashed var(--sg-dim); }
@@ -74,26 +74,37 @@
 .sg-root .sg-link { color: var(--sg-work); text-decoration: underline; }
 .sg-root .sg-cancel { margin-left: auto; color: var(--sg-dim); font-weight: 400; }
 .sg-root.sg-picking { border-top-color: #5a5048; }
-.sg-root > .sg-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.sg-root .sg-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15em 0.6em; width: 100%; padding: 0.35em 0.4em; border-radius: 4px;
-  font-size: 0.85em; text-align: left; white-space: nowrap; color: var(--sg-text); }
-.sg-root .sg-row:hover { background: #262626; }
+/* One card per session, side by side where the window is wide enough. */
+.sg-root > .sg-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16em), 1fr)); gap: 0.6em; align-content: start; }
+.sg-root .sg-row { display: flex; flex-wrap: wrap; align-items: baseline; align-content: flex-start; gap: 0.25em 0.5em;
+  width: 100%; min-width: 0; padding: 0.55em 0.75em 0.7em; border-radius: 8px; font-size: 0.85em; text-align: left;
+  white-space: nowrap; color: var(--sg-text); background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.06); border-top: 3px solid var(--sg-card, var(--sg-dim)); }
+.sg-root .sg-row:hover { background: rgba(255, 255, 255, 0.07); }
+/* The card's top edge takes its session's color, like the window's. */
+.sg-c-working { --sg-card: var(--sg-work); }
+.sg-c-needs_you { --sg-card: var(--sg-needs); }
+.sg-c-finished { --sg-card: var(--sg-done); }
+.sg-c-background, .sg-c-ended { --sg-card: #5a5048; }
+.sg-root .sg-row.sg-c-unsure { border-top-style: dashed; }
 /* The list scrolls, so it clips what is drawn outside it: the focus ring
-   goes just inside each row instead. */
-.sg-root .sg-list button:focus-visible { outline-offset: -2px; }
-/* Claude's last words in each session, under its row. */
-.sg-row-last { flex: 1 0 100%; padding-left: 1.6em; box-sizing: border-box; color: var(--sg-dim); font-size: 0.92em;
-  overflow: hidden; text-overflow: ellipsis; }
-.sg-row-key { flex: 0 0 1em; color: var(--sg-dim); font-weight: 400; font-variant-numeric: tabular-nums; }
-.sg-row-project { font-weight: 700; color: var(--sg-bright); overflow: hidden; text-overflow: ellipsis; max-width: 40%; flex: 0 0 auto; }
-.sg-row-task { color: var(--sg-dim); overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
-.sg-row-state { flex: 0 0 auto; font-weight: 700; color: var(--sg-work); }
+   goes just inside each card instead. */
+.sg-root .sg-list button:focus-visible { outline-offset: -2px; border-radius: 8px; }
+.sg-row-key { flex: 0 0 auto; color: var(--sg-dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+.sg-row-project { font-weight: 700; color: var(--sg-bright); overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.sg-row-state { flex: 0 0 auto; margin-left: auto; font-weight: 700; color: var(--sg-work); }
 .sg-row-state.sg-s-needs_you { color: var(--sg-needs); }
 .sg-row-state.sg-s-finished { color: var(--sg-done); }
 .sg-row-state.sg-s-unsure { color: var(--sg-dim); }
 .sg-current .sg-row-state { color: var(--sg-dim); font-weight: 400; }
-.sg-note { color: var(--sg-dim); font-size: 0.8em; padding: 0.35em 0.4em; }
-.sg-root .sg-more { font-size: 0.8em; padding: 0.35em 0.4em; text-align: left; color: var(--sg-dim); }
+.sg-row-task { flex: 1 0 100%; color: var(--sg-dim); overflow: hidden; text-overflow: ellipsis; }
+/* Claude's last words in each session, at the foot of its card. */
+.sg-row-last { flex: 1 0 100%; margin-top: 0.2em; white-space: normal; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.sg-note, .sg-root .sg-more { grid-column: 1 / -1; }
+.sg-note { color: var(--sg-dim); font-size: 0.8em; padding: 0.35em 0; }
+.sg-root .sg-more { font-size: 0.8em; padding: 0.35em 0; text-align: left; color: var(--sg-dim); }
 .sg-root .sg-more:hover { color: var(--sg-bright); }
 .sg-older .sg-row-project { color: var(--sg-text); font-weight: 400; }
 .sg-state { margin-left: auto; font-weight: 700; flex: 0 0 auto; color: var(--sg-work); }
@@ -336,9 +347,10 @@
     const hidden = p.list.length - shown.length;
     const rows = shown.map((s, i) => {
       const cur = s.session_id === followed;
-      return `<button class="sg-row${cur ? ' sg-current' : ''}${inPeriod(s) ? '' : ' sg-older'}" data-sg-act="choose" data-sg-id="${esc(s.session_id)}" title="${esc(s.cwd)}">` +
-        `<span class="sg-row-key" aria-hidden="true">${i < 9 ? i + 1 : ''}</span><span class="sg-row-project">${esc(s.project)}</span><span class="sg-row-task">${esc(s.task || s.prompt)}</span>` +
+      return `<button class="sg-row sg-c-${esc(s.state)}${cur ? ' sg-current' : ''}${inPeriod(s) ? '' : ' sg-older'}" data-sg-act="choose" data-sg-id="${esc(s.session_id)}" title="${esc(s.cwd)}">` +
+        `<span class="sg-row-key" aria-hidden="true">${i < 9 ? i + 1 : ''}</span><span class="sg-row-project">${esc(s.project)}</span>` +
         `<span class="sg-row-state sg-s-${esc(s.state)}">${cur ? 'Following' : esc(TITLES[s.state] || '')}</span>` +
+        `<span class="sg-row-task">${esc(s.task || s.prompt)}</span>` +
         (s.headline ? `<span class="sg-row-last">${esc(lastWords(s.headline))}</span>` : '') + '</button>';
     }).join('');
     let extra = '';
@@ -641,9 +653,25 @@
     }
     // Keys: S opens the switch list, arrows step through the sessions of the
     // work period, Enter goes to VS Code, F toggles full screen, ? shows or
-    // hides the keys; in the list, 1-9 pick a row.
+    // hides the keys; in the list, 1-9 pick a card and the arrows move
+    // between cards.
     // Ctrl+Alt+J goes to VS Code too: the same key brings you back (the
     // extension's Softgaze: Toggle), so one key goes both ways.
+    // The item in the nearest row below (or above) from, closest to it
+    // across; null in the last (or first) row.
+    function rowNeighbor(items, from, down) {
+      const f = from.getBoundingClientRect(), cx = (f.left + f.right) / 2;
+      const boxes = items.map(el => ({ el, b: el.getBoundingClientRect() }))
+        .filter(({ b }) => (down ? b.top > f.top + 1 : b.top < f.top - 1));
+      if (!boxes.length) return null;
+      const top = (down ? Math.min : Math.max)(...boxes.map(({ b }) => b.top));
+      let best = null, gap = Infinity;
+      for (const { el, b } of boxes) {
+        const d = Math.abs((b.left + b.right) / 2 - cx);
+        if (Math.abs(b.top - top) <= 1 && d < gap) { best = el; gap = d; }
+      }
+      return best;
+    }
     function onKey(e) {
       if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && (e.code === 'KeyJ' || e.key.toLowerCase() === 'j')) {
         if (locked) { e.preventDefault(); goToEditor(); }
@@ -658,12 +686,18 @@
           if (row) { e.preventDefault(); closePicker(row.dataset.sgId); }
           return;
         }
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        // The arrows follow the cards as laid out: Left and Right go to the
+        // previous and next card, Up and Down to the nearest card in the
+        // row above or below ("N more" is the last row).
+        const dir = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -2, ArrowDown: 2 }[e.key];
+        if (dir) {
           e.preventDefault();
           const items = [...container.querySelectorAll('.sg-row, .sg-more')];
-          let i = items.indexOf(doc.activeElement);
-          i = e.key === 'ArrowDown' ? Math.min(items.length - 1, i + 1) : Math.max(0, i - 1);
-          if (items[i]) items[i].focus();
+          const i = items.indexOf(doc.activeElement);
+          let next = items[0];
+          if (i >= 0 && Math.abs(dir) === 1) next = items[Math.min(items.length - 1, Math.max(0, i + dir))];
+          else if (i >= 0) next = rowNeighbor(items, items[i], dir > 0) || items[i];
+          if (next) next.focus();
         }
         return;
       }

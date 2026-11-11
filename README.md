@@ -133,7 +133,7 @@ then on it stays there until you switch.
 | --- | --- |
 | Enter | Go to the session's VS Code window and its Claude Code tab |
 | Ctrl+Alt+J | The same from softgaze; from VS Code, back to softgaze |
-| S | Switch session (in the list, 1-9 picks a row) |
+| S | Switch session (in the list, 1-9 picks a card; the arrows move between cards) |
 | Left / Right | Step through the sessions of the current work period |
 | F | Toggle full screen |
 | ? | Show the keys; ? again or Esc hides them |
