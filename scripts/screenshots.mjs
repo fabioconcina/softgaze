@@ -3,18 +3,20 @@
 // nothing in them comes from a real transcript. Run with: make screenshots
 // (the GIF needs ffmpeg; without it only the stills are retaken).
 import http from 'node:http';
-import { readFileSync, realpathSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { dirname } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // playwright-core is not a dependency of this repo: `make screenshots` runs
-// this under npx, which puts its command on the PATH. Load the package from
-// there.
-const cli = realpathSync(execFileSync('which', ['playwright-core'], { encoding: 'utf8' }).trim());
-const { chromium } = createRequire(import.meta.url)(dirname(cli));
+// this under npx, which puts its node_modules/.bin on the PATH. Load the
+// package from next to it (on Windows the command there is a .cmd file).
+const bin = (process.env.PATH || '').split(delimiter)
+  .find(d => d && ['playwright-core', 'playwright-core.cmd'].some(f => existsSync(join(d, f))));
+if (!bin) throw new Error('playwright-core not on the PATH: run this with make screenshots');
+const { chromium } = createRequire(join(bin, 'noop.js'))('playwright-core');
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const web = root + '/web', out = root + '/assets';
 
@@ -83,7 +85,8 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch();
 const shot = async (name, after) => {
   current = name === 'switch' ? 'working' : name;
-  const page = await browser.newPage({ viewport: { width: 760, height: 320 }, deviceScaleFactor: 2 });
+  // No color fade: a still taken mid-fade shows a dim top bar.
+  const page = await browser.newPage({ viewport: { width: 760, height: 320 }, deviceScaleFactor: 2, reducedMotion: 'reduce' });
   await page.goto(url);
   await page.waitForSelector('.sg-headline');
   await page.waitForTimeout(600);
