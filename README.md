@@ -60,11 +60,12 @@ Press N (or click) and write one line: something to check when Claude is
 back, or any other thought, so you can let it go. Enter keeps it, Esc
 leaves it as it was. The note sits at the bottom of the window, just above
 the line on what to do: quiet while you wait (click it to change it), set
-apart once it is your turn, with two actions: **Copy**, to paste it where you need it (your reply to Claude,
-say), and **Done**, which clears it. Until you mark it done it comes back
-turn after turn, so a thought never goes without you seeing it go. One
-note per session; softgaze never types it into Claude Code. Notes stay in
-softgaze's memory, never on disk, and a restart forgets them.
+apart once it is your turn, with two actions: **Copy**, to paste it where
+you need it (your reply to Claude, say), and **Done**, which clears it.
+Until you mark it done it comes back turn after turn, so a thought never
+goes without you seeing it go. One note per session; softgaze never types
+it into Claude Code. Notes stay in softgaze's memory, never on disk, and a
+restart forgets them.
 
 ## Install
 

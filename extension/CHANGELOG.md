@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-11-12
+
+- The panel lets the softgaze window write to the clipboard, so **Copy**
+  on a note works inside VS Code. Notes come with softgaze 0.2.0.
+
 ## 0.1.0 - 2026-11-10
 
 First release.

@@ -2,7 +2,7 @@
   "name": "softgaze",
   "displayName": "Softgaze",
   "description": "A calm window to stay with one Claude Code session while it works. Requires the free softgaze app.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "fabioconcina",
   "license": "MIT",
   "icon": "icon.png",
