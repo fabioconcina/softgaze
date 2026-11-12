@@ -33,6 +33,9 @@ type Handlers struct {
 	notesMu    sync.Mutex
 	notes      map[string]note // session -> the note set down in it
 	noteSeq    uint64
+	asideMu    sync.Mutex
+	aside      map[string]asideMark // session -> when it was set aside
+	asideSeq   uint64
 }
 
 // AttentionSource is what the window in front says about the user: an

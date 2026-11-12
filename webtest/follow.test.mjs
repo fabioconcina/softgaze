@@ -69,6 +69,27 @@ test('the switch list escapes every field', () => {
   assertInert(pickerHTML({ ...pick, all: true }, 's-working'), 'all sessions');
 });
 
+test('a session set aside leaves the switch list until shown', () => {
+  const { pickerHTML, view } = renderers();
+  const list = [session('working'), session('finished', { aside: true }), session('needs_you')];
+  const pick = { list, current: null, since: P, breakMin: 120, all: false };
+  const html = pickerHTML(pick, 's-working');
+  assert.doesNotMatch(html, /data-sg-id="s-finished"/, 'the set-aside card is hidden');
+  assert.equal(html.match(/data-sg-act="aside"/g).length, 2, 'every card shown can be set aside');
+  assert.match(html, />1 more, set aside</);
+  const all = pickerHTML({ ...pick, all: true }, 's-working');
+  assert.match(all, /data-sg-id="s-finished"/, 'more shows it');
+  assert.match(all, /sg-s-aside">Set aside</);
+  assert.equal(all.match(/data-sg-act="aside"/g).length, 2, 'a card already set aside has no Set aside');
+  // With older sessions hidden too, one link says both.
+  const both = pickerHTML({ ...pick, current: new Set(['s-working']) }, 's-working');
+  assert.match(both, /2 more, not prompted since .* or set aside</);
+  // The followed session is never hidden, even if set aside elsewhere.
+  assert.match(pickerHTML(pick, 's-finished'), /data-sg-id="s-finished"/);
+  // The window after setting aside the session it followed.
+  assert.match(view({ free: true }).html, /Not following a session/);
+});
+
 // While Claude works, its message stays until it has had its reading time;
 // a newer one waits for it. Anything else shows at once.
 test('a message is held for its reading time', () => {

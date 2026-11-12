@@ -82,6 +82,15 @@
   white-space: nowrap; color: var(--sg-text); background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.06); border-top: 3px solid var(--sg-card, var(--sg-dim)); }
 .sg-root .sg-row:hover { background: rgba(255, 255, 255, 0.07); }
+/* Set aside: in the card's bottom corner, only on the card under the
+   pointer or with the keyboard. */
+.sg-card { position: relative; min-width: 0; display: flex; }
+.sg-root .sg-aside { display: none; position: absolute; right: 3px; bottom: 3px; font-size: 0.75em; color: var(--sg-dim);
+  padding: 0.3em 0.75em 0.4em 0.6em; border-radius: 0 0 6px 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.035)) var(--sg-bg); }
+.sg-card:hover .sg-aside { background: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)) var(--sg-bg); }
+.sg-card:hover .sg-aside, .sg-card:focus-within .sg-aside { display: block; }
+.sg-root .sg-aside:hover { color: var(--sg-bright); text-decoration: underline; }
 /* The card's top edge takes its session's color, like the window's. */
 .sg-c-working { --sg-card: var(--sg-work); }
 .sg-c-needs_you { --sg-card: var(--sg-needs); }
@@ -97,7 +106,7 @@
 .sg-row-state.sg-s-needs_you { color: var(--sg-needs); }
 .sg-row-state.sg-s-finished { color: var(--sg-done); }
 .sg-row-state.sg-s-unsure { color: var(--sg-dim); }
-.sg-current .sg-row-state { color: var(--sg-dim); font-weight: 400; }
+.sg-current .sg-row-state, .sg-row-state.sg-s-aside { color: var(--sg-dim); font-weight: 400; }
 .sg-row-task { flex: 1 0 100%; color: var(--sg-dim); overflow: hidden; text-overflow: ellipsis; }
 /* Claude's last words in each session, at the foot of its card. */
 .sg-row-last { flex: 1 0 100%; margin-top: 0.2em; white-space: normal; overflow: hidden;
@@ -347,6 +356,10 @@
     if (f.state === 'empty') {
       return { state: 'none', title: 'Softgaze', html: `<div class="sg-empty"><strong>${esc(f.project)}</strong>Waiting for your first prompt.</div>` };
     }
+    // You set aside the session the window followed (in the switch list).
+    if (f.free) {
+      return { state: 'none', title: 'Softgaze', html: '<div class="sg-empty"><strong>Not following a session</strong>The next session you prompt shows here. S picks one now.</div>' };
+    }
     const n = f.needs_you;
     // A one-line message is quoted; a longer one is laid out as blocks.
     const said = t => t.includes('\n') ? msgHTML(t) : '&ldquo;' + esc(t) + '&rdquo;';
@@ -473,23 +486,35 @@
     if (t.length > 220) { t = t.slice(-220); const i = t.indexOf(' '); t = '…' + (i > 0 ? t.slice(i + 1) : t); }
     return t;
   }
+  // A session you set aside (a card's Set aside, or X) leaves the list until
+  // you prompt it again; "more" shows it, with the older ones.
   function pickerHTML(p, followed) {
     const inPeriod = s => !p.current || p.current.has(s.session_id) || s.session_id === followed;
-    const shown = p.all ? p.list : p.list.filter(inPeriod);
-    const hidden = p.list.length - shown.length;
+    const away = s => s.aside && s.session_id !== followed;
+    const shown = p.all ? p.list : p.list.filter(s => inPeriod(s) && !away(s));
+    const older = p.all ? 0 : p.list.filter(s => !inPeriod(s) && !away(s)).length;
+    const aside = p.all ? 0 : p.list.filter(away).length;
     const rows = shown.map((s, i) => {
       const cur = s.session_id === followed;
-      return `<button class="sg-row sg-c-${esc(s.state)}${cur ? ' sg-current' : ''}${inPeriod(s) ? '' : ' sg-older'}" data-sg-act="choose" data-sg-id="${esc(s.session_id)}" title="${esc(s.cwd)}">` +
+      const label = cur ? 'Following' : away(s) ? 'Set aside' : TITLES[s.state] || '';
+      return `<div class="sg-card"><button class="sg-row sg-c-${esc(s.state)}${cur ? ' sg-current' : ''}${inPeriod(s) && !away(s) ? '' : ' sg-older'}" data-sg-act="choose" data-sg-id="${esc(s.session_id)}" title="${esc(s.cwd)}">` +
         `<span class="sg-row-key" aria-hidden="true">${i < 9 ? i + 1 : ''}</span><span class="sg-row-project">${esc(s.project)}</span>` +
-        `<span class="sg-row-state sg-s-${esc(s.state)}">${cur ? 'Following' : esc(TITLES[s.state] || '')}</span>` +
+        `<span class="sg-row-state sg-s-${away(s) ? 'aside' : esc(s.state)}">${esc(label)}</span>` +
         `<span class="sg-row-task">${esc(s.task || s.prompt)}</span>` +
-        (s.headline ? `<span class="sg-row-last">${esc(lastWords(s.headline))}</span>` : '') + '</button>';
+        (s.headline ? `<span class="sg-row-last">${esc(lastWords(s.headline))}</span>` : '') + '</button>' +
+        (away(s) ? '' : `<button class="sg-aside" data-sg-act="aside" data-sg-id="${esc(s.session_id)}" title="Out of this list until you prompt it again (X)">Set aside</button>`) +
+        '</div>';
     }).join('');
     let extra = '';
-    if (hidden) {
+    if (older || aside) {
       const brk = p.breakMin >= 90 ? (p.breakMin / 60).toFixed(1).replace(/\.0$/, '') + ' h' : p.breakMin + ' min';
-      const why = `Hidden: sessions you have not prompted since your last long break (a pause over ${brk}, ${p.learned ? 'learned from your history' : 'the default until there is more history'})`;
-      extra = `<button class="sg-link sg-more" data-sg-act="more" title="${esc(why)}">${hidden} more, not prompted since ${esc(when(p.since))}</button>`;
+      const why = [
+        older ? `Hidden: sessions you have not prompted since your last long break (a pause over ${brk}, ${p.learned ? 'learned from your history' : 'the default until there is more history'})` : '',
+        aside ? 'Hidden: sessions you set aside, until you prompt them again' : '',
+      ].filter(Boolean).join('. ');
+      const since = `not prompted since ${when(p.since)}`;
+      const what = older && aside ? since + ' or set aside' : older ? since : 'set aside';
+      extra = `<button class="sg-link sg-more" data-sg-act="more" title="${esc(why)}">${older + aside} more, ${esc(what)}</button>`;
     } else if (!shown.some(s => s.session_id !== followed)) {
       extra = '<div class="sg-note">No other session is running. A session shows up here after its first prompt.</div>';
     }
@@ -502,6 +527,8 @@
   // Renders the live view into container (in any document) and keeps it
   // current from the SSE stream. The first session shown is locked: the view
   // never moves to another one unless the user picks it from the switch list.
+  // Setting the followed session aside (in the list) unlocks it: the window
+  // then waits for the first prompt sent after that.
   // Returns a handle with session() and destroy().
   function mount(container, opts) {
     opts = opts || {};
@@ -510,6 +537,7 @@
     container.className = 'sg-root sg-none';
     container.innerHTML = '<div class="sg-empty">Connecting...</div>';
     let es = null, stopped = false, retry = 2, offline = false, locked = opts.session || null, shown = '';
+    let free = null; // after the followed session is set aside: { since }
 
     // When the window is too small for everything, drop the least important
     // lines whole (the hint, the question's context, the answer options,
@@ -739,8 +767,12 @@
         if (r.ok) {
           const f = (await r.json()).session;
           if (want === locked) { // else the user switched meanwhile: drop it
-            if (!locked && f && f.running) locked = f.session_id;
-            render(f);
+            // Not following: f is the session prompted last (set-aside ones
+            // left out). After a set aside, lock onto it only once you
+            // prompt one again.
+            const fresh = f && f.running && (!free || ms(f.turn_start) > free.since);
+            if (!locked && fresh) { locked = f.session_id; free = null; }
+            render(free ? { free: true } : f);
           }
         } else if (r.status === 404 && !picking) {
           container.innerHTML = '<div class="sg-empty"><strong>Update softgaze</strong>This server is too old.</div>';
@@ -814,9 +846,36 @@
       if (!picking) return;
       picking = false;
       const chosen = id && id !== locked && choices.find(s => s.session_id === id);
-      if (chosen) locked = id;
+      if (chosen) { locked = id; free = null; }
+      // Picking a session you set aside brings it back.
+      if (chosen && chosen.aside) { chosen.aside = false; tellAside(id, false); }
       if (chosen || latest !== undefined) render(chosen || latest);
       load();
+    }
+    // Set aside: the session leaves the list and the arrows until you prompt
+    // it again. Set aside the one followed and the window follows none: it
+    // waits for your next prompt rather than jump to another session.
+    function setAside(id) {
+      const s = picking && choices.find(c => c.session_id === id);
+      if (!s || s.aside) return;
+      const at = [...container.querySelectorAll('.sg-row')].findIndex(el => el.dataset.sgId === id);
+      s.aside = true;
+      if (id === locked) {
+        locked = null;
+        free = { since: Date.now() };
+        onScreen = null;
+        latest = { free: true };
+      }
+      tellAside(id, true, () => { s.aside = false; if (picking) showPicker('.sg-current'); });
+      container.innerHTML = pickerHTML(pick, locked);
+      const rows = container.querySelectorAll('.sg-row');
+      const el = rows[Math.min(at, rows.length - 1)] || container.querySelector('.sg-more, .sg-cancel');
+      if (el) el.focus();
+    }
+    function tellAside(session, aside, failed) {
+      fetch('/api/follow/aside', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session, aside }),
+      }).then(r => { if (!r.ok) throw new Error(); }).catch(() => { if (failed) failed(); });
     }
     // Your turn: a click anywhere else in the window brings up the session's
     // VS Code window.
@@ -885,6 +944,7 @@
       else if (act === 'more' && picking && pick) { pick.all = true; showPicker('.sg-older'); }
       else if (act === 'cancel') closePicker();
       else if (act === 'choose') closePicker(t.dataset.sgId);
+      else if (act === 'aside') setAside(t.dataset.sgId);
       else if (act === 'note') openNote();
       else if (act === 'notecopy') copyNote(t);
       else if (act === 'notedone') doneNote();
@@ -892,7 +952,8 @@
     // Keys: S opens the switch list, arrows step through the sessions of the
     // work period, Enter goes to VS Code, F toggles full screen, N sets
     // down a note while you wait, ? shows or hides the keys; in the list,
-    // 1-9 pick a card and the arrows move between cards.
+    // 1-9 pick a card, the arrows move between cards and X sets the card
+    // with the keyboard aside.
     // Ctrl+Alt+J goes to VS Code too: the same key brings you back (the
     // extension's Softgaze: Toggle), so one key goes both ways.
     // The item in the nearest row below (or above) from, closest to it
@@ -919,6 +980,12 @@
       const onButton = e.target && e.target.closest && e.target.closest('button');
       if (picking) {
         if (e.key === 'Escape') { e.preventDefault(); closePicker(); return; }
+        if (e.key === 'x' || e.key === 'X' || e.key === 'Delete') {
+          const card = doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.sg-card');
+          const row = card && card.querySelector('.sg-row');
+          if (row) { e.preventDefault(); setAside(row.dataset.sgId); }
+          return;
+        }
         if (/^[1-9]$/.test(e.key)) {
           const row = container.querySelectorAll('.sg-row')[+e.key - 1];
           if (row) { e.preventDefault(); closePicker(row.dataset.sgId); }
@@ -959,13 +1026,15 @@
         if (!r.ok) return;
         const d = await r.json();
         const all = d.sessions || [], cur = new Set(d.current || []);
-        let list = all.filter(s => cur.has(s.session_id) || s.session_id === locked);
-        if (list.length < 2) list = all;
+        const here = all.filter(s => !s.aside || s.session_id === locked); // set aside: skipped
+        let list = here.filter(s => cur.has(s.session_id) || s.session_id === locked);
+        if (list.length < 2) list = here;
         if (list.length < 2 || picking || stopped) return;
         const i = list.findIndex(s => s.session_id === locked);
         const next = list[(i + dir + list.length) % list.length];
         if (!next || next.session_id === locked) return;
         locked = next.session_id;
+        free = null;
         shown = '';
         render(next);
         load();

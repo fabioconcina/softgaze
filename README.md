@@ -146,14 +146,24 @@ Open it with **Softgaze: Open** in VS Code. It gets a VS Code window of its
 own, with a locked editor group so files never open beside it. A browser on
 `http://127.0.0.1:3133` works too.
 
-The window starts empty and locks onto the session you prompt next. From
-then on it stays there until you switch.
+The window locks onto the session you prompted last (or, with none
+running, the one you prompt next). From then on it stays there until you
+switch.
+
+A session you keep open but are done with for now can be **set aside**:
+hover its card in the switch list (or move to it with the arrows) and click
+**Set aside**, or press X. It leaves the list and the arrow keys, and the
+window never picks it by itself, until you prompt it again or pick it
+from the list's "more". Set aside the session the window follows and the
+window follows none: it waits for your next prompt instead of jumping to
+another session. softgaze keeps this in memory only; a restart brings
+every session back.
 
 | Key | What it does |
 | --- | --- |
 | Enter | Go to the session's VS Code window and its Claude Code tab |
 | Ctrl+Alt+J | The same from softgaze; from VS Code, back to softgaze |
-| S | Switch session (in the list, 1-9 picks a card; the arrows move between cards) |
+| S | Switch session (in the list, 1-9 picks a card, the arrows move between cards, X sets a card aside) |
 | Left / Right | Step through the sessions of the current work period |
 | F | Toggle full screen |
 | N | Write a note while Claude works (Enter keeps it, Esc leaves it) |
@@ -243,9 +253,9 @@ Pure Go, no CGO. The window is plain JavaScript with no dependencies.
   stretches (`focus.go`).
 - `internal/server`: the HTTP API (`/api/follow`, `/api/follow/sessions`,
   `/api/follow/focus`, `/api/follow/back`, `/api/follow/note`,
-  `/api/attention/editor`, `/api/attention/page`), the notes you write
-  (in memory, `note.go`), the event stream, and the
-  host and origin guards.
+  `/api/follow/aside`, `/api/attention/editor`, `/api/attention/page`),
+  the notes you write and the sessions you set aside (in memory, `note.go`,
+  `aside.go`), the event stream, and the host and origin guards.
 - `internal/watcher`: watches transcripts and PID files and tells the window
   to refresh.
 - `internal/attention`: which window is in front. Windows and X11 from window

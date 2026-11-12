@@ -41,8 +41,12 @@ func (h *Handlers) HandleFollow(w http.ResponseWriter, r *http.Request) {
 	}
 	var f *parser.Follow
 	if id == "" {
-		if running := parser.FollowSessions(h.claudeDir); len(running) > 0 {
-			f = running[0]
+		// The session prompted last, leaving out the ones set aside.
+		for _, s := range parser.FollowSessions(h.claudeDir) {
+			if !h.isAside(s) {
+				f = s
+				break
+			}
 		}
 	} else {
 		var err error
@@ -381,6 +385,7 @@ func (h *Handlers) HandleFollowSessions(w http.ResponseWriter, r *http.Request) 
 		if f.LastPromptAt != nil && !f.LastPromptAt.Before(wp.Since) {
 			resp.Current = append(resp.Current, f.SessionID)
 		}
+		f.Aside = h.isAside(f)
 	}
 	writeJSON(w, resp)
 }

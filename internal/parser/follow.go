@@ -128,6 +128,9 @@ type Follow struct {
 	// Note is a thought the user set down in the window for this session,
 	// kept until they mark it done; set by the HTTP handler.
 	Note string `json:"note,omitempty"`
+	// Aside: the user set this session aside (out of the switch list) and
+	// has not prompted it since; set by the HTTP handler.
+	Aside bool `json:"aside,omitempty"`
 
 	pending  []pendingCall // tool calls of the latest turn awaiting a result
 	latest   *narrated     // the latest turn's newest narration
