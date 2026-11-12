@@ -139,6 +139,26 @@
 .sg-trail > .sg-tl, .sg-tools { font-size: 0.85em; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .sg-tools { font-size: 0.8em; color: var(--sg-dim); }
 .sg-tl::before, .sg-tools::before { content: '\\2192  '; }
+/* Your note: quiet while you wait, set apart once it is your turn. */
+.sg-root .sg-mynote { display: block; font-size: 0.85em; color: var(--sg-text); text-align: left; overflow-wrap: anywhere; }
+.sg-mynote b { color: var(--sg-dim); font-weight: 400; }
+.sg-root button.sg-mynote:hover .sg-mynote-text { text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.sg-root .sg-mynote.sg-due { font-size: 0.95em; color: var(--sg-bright); border-left: 2px solid var(--sg-dim); padding-left: 0.6em; }
+.sg-root .sg-notelink { text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.sg-root .sg-notelink:hover { color: var(--sg-bright); }
+.sg-noteacts { margin-left: 0.8em; color: var(--sg-dim); font-size: 0.85em; white-space: nowrap; }
+.sg-root .sg-noteacts button:hover { color: var(--sg-bright); text-decoration: underline; text-underline-offset: 0.2em; }
+.sg-noting { display: flex; flex-direction: column; gap: 0.3em; font-size: 0.85em; }
+/* The note, and the box to write it, sit at the bottom, just above the line
+   on what to do (which otherwise takes the free space above itself). */
+.sg-root .sg-mynote, .sg-noting { margin-top: auto; }
+.sg-root .sg-mynote:not(.sg-drop) ~ .sg-foot, .sg-noting ~ .sg-foot { margin-top: 0.15em; }
+.sg-noting input { font: inherit; color: var(--sg-bright); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px; padding: 0.4em 0.6em; width: 100%; box-sizing: border-box; }
+.sg-noting input:focus { outline: 2px solid var(--sg-work); outline-offset: 1px; }
+.sg-noting input::placeholder { color: var(--sg-dim); }
+.sg-noting-keys { color: var(--sg-dim); font-size: 0.85em; }
+.sg-editing .sg-mynote, .sg-editing .sg-noteoffer { display: none; }
 /* What Claude is doing in a long silence: words, so no arrow. */
 .sg-tools.sg-now { opacity: 1; }
 .sg-tools.sg-now::before { content: none; }
@@ -392,12 +412,23 @@
     const doingNow = f.state === 'working' ? nowLine(f, Date.now()) : null;
     const tools = doingNow ? `<div class="sg-tools sg-now" data-sg-form="${esc(doingNow.form)}">${doingNow.html}</div>`
       : f.tools && quiet && f.state !== 'finished' && f.state !== 'ended' && f.state !== 'working' ? `<div class="sg-tools">${esc(f.tools)}</div>` : '';
+    // Your note sits at the bottom, just above the line on what to do: quiet
+    // while you wait (click or N to change it), set apart once it is your
+    // turn, with Copy and Done. Until Done it comes back turn after turn.
+    // In a long wait with no note, the bottom line offers one.
+    const noteText = f.note ? `<b>Your note:</b> <span class="sg-mynote-text">${esc(f.note)}</span>` : '';
+    const note = !f.note ? ''
+      : NOTE[f.state] ? `<button class="sg-mynote" data-sg-act="note" title="Change your note (N)">${noteText}</button>`
+      : `<div class="sg-mynote sg-due">${noteText}<span class="sg-noteacts">` +
+        '<button data-sg-act="notecopy" title="Copy the note, to paste it where you need it">Copy</button> · ' +
+        '<button data-sg-act="notedone" title="Clear the note">Done</button></span></div>';
+    if (!f.note && (doingNow || f.state === 'background')) cta += ' <span class="sg-noteoffer">Something on your mind? <button class="sg-notelink" data-sg-act="note" title="N">Note it</button></span>';
     const html = `
       <div class="sg-top"><button class="sg-project sg-switch" data-sg-act="pick"><span class="sg-name">${esc(f.project)}</span><span class="sg-chev" aria-hidden="true">&#9662;</span></button><button class="sg-editor" data-sg-act="editor">VS Code &#8599;</button><span class="sg-state">${label}</span></div>
       ${(f.task || f.prompt) ? `<div class="sg-task"><b>Your task:</b> ${esc(f.task || f.prompt)}</div>` : ''}
       ${trail}<div class="sg-headline">${headline}</div>${tools}${extra}
-      ${f.at_it_since && GO[f.state] ? `<div class="sg-break" data-sg-break="${esc(f.at_it_since)}" data-sg-turn="${esc(f.turn_start || '')}">You've been at it since ${esc(when(f.at_it_since))}. A short break would fit here.</div>` : ''}
-      <div class="sg-cta sg-foot"><span class="sg-foot-main${f.state === 'working' || f.state === 'background' ? ' sg-hint' : ''}">${cta}</span><span class="sg-keys">S switch · &#8592; &#8594; · F full screen · Enter VS Code · Ctrl+Alt+J both ways · ? hide</span>${focusSlot(f)}</div>`;
+      ${f.at_it_since && GO[f.state] ? `<div class="sg-break" data-sg-break="${esc(f.at_it_since)}" data-sg-turn="${esc(f.turn_start || '')}">You've been at it since ${esc(when(f.at_it_since))}. A short break would fit here.</div>` : ''}${note}
+      <div class="sg-cta sg-foot"><span class="sg-foot-main${f.state === 'working' || f.state === 'background' ? ' sg-hint' : ''}">${cta}</span><span class="sg-keys">S switch · &#8592; &#8594; · F full screen · Enter VS Code · Ctrl+Alt+J both ways · N note · ? hide</span>${focusSlot(f)}</div>`;
     return { state: f.state, title: (TITLES[f.state] || 'Softgaze') + ' · ' + f.project, html };
   }
 
@@ -413,6 +444,8 @@
   // States where it is your turn, or where only Claude Code can say:
   // clicking the window takes you to VS Code.
   const GO = { finished: true, needs_you: true, unsure: true };
+  // States where you wait, so a note can be set down (see mount: openNote).
+  const NOTE = { working: true, background: true };
 
   // "09:05" today, "Wed 14:10" before.
   function when(iso) {
@@ -496,7 +529,8 @@
       const items = trail ? [...trail.children] : [];
       const steps = [() => drop('.sg-hint'), () => drop('.sg-qctx'), () => drop('.sg-options')];
       items.slice(0, -2).forEach(el => steps.push(() => el.classList.add('sg-drop')));
-      steps.push(() => drop('.sg-tools'), () => drop('.sg-task'));
+      // Your note goes with your task while you wait; at your turn it stays.
+      steps.push(() => drop('.sg-tools'), () => drop('.sg-task'), () => drop('button.sg-mynote'));
       items.slice(-2).forEach(el => steps.push(() => el.classList.add('sg-drop')));
       if (trail) steps.push(() => trail.classList.add('sg-drop'));
       for (const step of steps) {
@@ -586,6 +620,13 @@
     function render(f) {
       latest = f;
       if (picking) return;
+      // While you write a note the view holds still, unless Claude stops or
+      // needs you: then the note is kept and the window changes as always.
+      if (noting) {
+        if (f && f.state === state && f.session_id === noting.session) return;
+        closeNote(true);
+        return;
+      }
       const h = hold(onScreen, f, Date.now());
       onScreen = h.onScreen;
       if (holdTimer) { W.clearTimeout(holdTimer); holdTimer = null; }
@@ -607,6 +648,84 @@
         fit(); // also forces layout now, so a fresh window draws it
       }
       doc.title = v.title;
+    }
+
+    // A note, set down while you wait (N, or "Note it"): one line, Enter
+    // keeps it, Esc leaves it as it was. It stays with the session, turn
+    // after turn, until you mark it done at your turn (or clear it).
+    let noting = null; // the note being written: its session and input
+    function openNote() {
+      if (noting || picking || !locked || !latest || latest.session_id !== locked || !NOTE[latest.state]) return;
+      const foot = container.querySelector('.sg-foot');
+      if (!foot) return;
+      const box = doc.createElement('div');
+      box.className = 'sg-noting';
+      box.innerHTML = '<input type="text" maxlength="280" aria-label="Your note" placeholder="A thought to set down. It will be here when it is your turn.">' +
+        '<span class="sg-noting-keys">Enter keeps it · Esc leaves it</span>';
+      const input = box.firstChild;
+      input.value = latest.note || '';
+      input.addEventListener('keydown', e => {
+        e.stopPropagation(); // typing is not the window's keys
+        if (e.isComposing) return;
+        if (e.key === 'Enter') { e.preventDefault(); closeNote(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); closeNote(false); }
+      });
+      input.addEventListener('blur', () => closeNote(true));
+      noting = { session: latest.session_id, input };
+      container.classList.add('sg-editing');
+      foot.parentNode.insertBefore(box, foot);
+      fit();
+      input.focus();
+    }
+    function closeNote(keep) {
+      if (!noting) return;
+      const { session, input } = noting;
+      noting = null;
+      container.classList.remove('sg-editing');
+      const text = input.value.replace(/\s+/g, ' ').trim();
+      if (keep && latest && latest.session_id === session && text !== (latest.note || '')) saveNote(text);
+      shown = '';
+      if (!picking && !stopped && latest !== undefined) render(latest);
+    }
+    // Keeps the followed session's note ('' drops it). Shown at once; the
+    // server's copy follows with the next update.
+    function saveNote(text) {
+      if (!latest) return;
+      const session = latest.session_id;
+      latest = { ...latest, note: text };
+      fetch('/api/follow/note', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session, text }),
+      }).then(r => { if (!r.ok) throw new Error(); }).catch(() => {
+        notice = 'Could not keep the note.';
+        shown = '';
+        if (!picking && !stopped) render(latest);
+        W.setTimeout(() => { notice = ''; shown = ''; if (!picking && !stopped) render(latest); }, 4000);
+      });
+    }
+    // At your turn: Copy (to paste into your reply to Claude, say) and Done.
+    async function copyNote(btn) {
+      const text = latest && latest.note;
+      if (!text) return;
+      let ok = false;
+      try { await W.navigator.clipboard.writeText(text); ok = true; } catch (e) {
+        // Framed in VS Code the clipboard API may be off: the old way.
+        const ta = doc.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        doc.body.appendChild(ta);
+        ta.select();
+        try { ok = doc.execCommand('copy'); } catch (e2) { ok = false; }
+        ta.remove();
+      }
+      btn.textContent = ok ? 'Copied' : 'Could not copy';
+      W.setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy'; }, 2000);
+    }
+    function doneNote() {
+      if (!latest || !latest.note) return;
+      saveNote('');
+      shown = '';
+      if (!picking && !stopped) render(latest);
     }
 
     let inflight = false, again = false, last = 0, timer = null;
@@ -665,6 +784,7 @@
 
     async function openPicker() {
       if (picking) return;
+      closeNote(true);
       picking = true;
       shown = '';
       container.className = 'sg-root sg-picking' + (evening() ? ' sg-evening' : '');
@@ -765,11 +885,14 @@
       else if (act === 'more' && picking && pick) { pick.all = true; showPicker('.sg-older'); }
       else if (act === 'cancel') closePicker();
       else if (act === 'choose') closePicker(t.dataset.sgId);
+      else if (act === 'note') openNote();
+      else if (act === 'notecopy') copyNote(t);
+      else if (act === 'notedone') doneNote();
     }
     // Keys: S opens the switch list, arrows step through the sessions of the
-    // work period, Enter goes to VS Code, F toggles full screen, ? shows or
-    // hides the keys; in the list, 1-9 pick a card and the arrows move
-    // between cards.
+    // work period, Enter goes to VS Code, F toggles full screen, N sets
+    // down a note while you wait, ? shows or hides the keys; in the list,
+    // 1-9 pick a card and the arrows move between cards.
     // Ctrl+Alt+J goes to VS Code too: the same key brings you back (the
     // extension's Softgaze: Toggle), so one key goes both ways.
     // The item in the nearest row below (or above) from, closest to it
@@ -819,6 +942,7 @@
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       if (k === 's') { e.preventDefault(); openPicker(); }
       else if (k === 'f') { e.preventDefault(); toggleFullScreen(); }
+      else if (k === 'n' && NOTE[state]) { e.preventDefault(); openNote(); }
       else if (k === 'ArrowRight' || k === 'ArrowLeft') { e.preventDefault(); step(k === 'ArrowRight' ? 1 : -1); }
       else if (k === 'Enter' && !onButton && locked) { e.preventDefault(); goToEditor(); }
       else if (k === '?') { e.preventDefault(); showKeys(!keysShown()); }

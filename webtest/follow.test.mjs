@@ -31,7 +31,7 @@ function session(state, extra = {}) {
     session_id: 's-' + state, state, project: P, cwd: P, task: P, prompt: P, running: true,
     headline: `${P}\n\n• ${P}\n  2. ${P}\n| ${P} | x |\n| y \\| z | ${P} |`, headline_at: P, turn_start: P, turn_end: P,
     trail: [P, { kind: 'tools', text: P }, { kind: 'msg', text: P }],
-    tools: P, activity: P, unsure: P, at_it_since: P,
+    tools: P, activity: P, unsure: P, at_it_since: P, note: P,
     background: { what: P, since: P, count: 2 },
     focus: { since: P, away_ms: P, away_since: P },
     ...extra,
@@ -136,6 +136,34 @@ test('a silent turn shows what Claude last set out to do', () => {
   const between = headline({ ...base, activity: 'thinking', doing: 'writing notes.md' });
   assert.match(between, /writing notes\.md/);
   assert.doesNotMatch(between, /starting on it/);
+});
+
+// A note: offered in a long wait; it sits at the bottom, just above the
+// line on what to do (a button to change it while you wait, Copy and Done
+// at your turn).
+test('a note is offered in a long wait and shown at your turn', () => {
+  const { view } = renderers();
+  const base = {
+    session_id: 's', state: 'working', project: 'p', turn_start: ago(600), headline: 'Deploying.',
+    headline_at: ago(120), trail: [], tools: 'Bash', activity: 'thinking', last_activity: ago(5), task: 'Ship it',
+  };
+  const offer = /<span class="sg-noteoffer">Something on your mind\? <button class="sg-notelink" data-sg-act="note"/;
+  assert.match(view(base).html, offer);
+  assert.match(view({ ...base, state: 'background', background: { what: 'x', since: ago(60), count: 1 } }).html, offer);
+  // Not in a short wait, nor at your turn.
+  assert.doesNotMatch(view({ ...base, headline_at: ago(5) }).html, offer);
+  assert.doesNotMatch(view({ ...base, state: 'finished' }).html, offer);
+  // With a note: no offer; the note at the bottom, just above the line on
+  // what to do, changed with a click.
+  const waiting = view({ ...base, note: 'reply to Anna' }).html;
+  assert.doesNotMatch(waiting, offer);
+  assert.match(waiting, /<button class="sg-mynote" data-sg-act="note" title="Change your note \(N\)"><b>Your note:<\/b> <span class="sg-mynote-text">reply to Anna<\/span><\/button>\s*<div class="sg-cta sg-foot">/);
+  // At your turn: there too, set apart, with Copy and Done; not a button.
+  for (const state of ['finished', 'needs_you', 'unsure', 'ended']) {
+    const html = view({ ...base, state, note: 'reply to Anna' }).html;
+    assert.match(html, /<div class="sg-mynote sg-due"><b>Your note:<\/b> <span class="sg-mynote-text">reply to Anna<\/span><span class="sg-noteacts"><button data-sg-act="notecopy"[^>]*>Copy<\/button> · <button data-sg-act="notedone"[^>]*>Done<\/button><\/span><\/div>\s*<div class="sg-cta sg-foot">/, state);
+    assert.doesNotMatch(html, /<button class="sg-mynote"/, state);
+  }
 });
 
 // A long silence explained: after half a minute without new words, one

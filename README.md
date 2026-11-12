@@ -53,6 +53,19 @@ has said, then where things stand.
 
 After 7 pm the colors get warmer and a little softer.
 
+### A note while you wait
+
+In a long wait the bottom line asks "Something on your mind? Note it".
+Press N (or click) and write one line: something to check when Claude is
+back, or any other thought, so you can let it go. Enter keeps it, Esc
+leaves it as it was. The note sits at the bottom of the window, just above
+the line on what to do: quiet while you wait (click it to change it), set
+apart once it is your turn, with two actions: **Copy**, to paste it where you need it (your reply to Claude,
+say), and **Done**, which clears it. Until you mark it done it comes back
+turn after turn, so a thought never goes without you seeing it go. One
+note per session; softgaze never types it into Claude Code. Notes stay in
+softgaze's memory, never on disk, and a restart forgets them.
+
 ## Install
 
 softgaze has two parts: the app, which runs in the background, and the VS
@@ -142,6 +155,7 @@ then on it stays there until you switch.
 | S | Switch session (in the list, 1-9 picks a card; the arrows move between cards) |
 | Left / Right | Step through the sessions of the current work period |
 | F | Toggle full screen |
+| N | Write a note while Claude works (Enter keeps it, Esc leaves it) |
 | ? | Show the keys; ? again or Esc hides them |
 
 The keys stay hidden until you ask for them. When it is your turn, a click
@@ -227,8 +241,9 @@ Pure Go, no CGO. The window is plain JavaScript with no dependencies.
   `followcache.go`), work periods and runs of work (`workperiod.go`), focus
   stretches (`focus.go`).
 - `internal/server`: the HTTP API (`/api/follow`, `/api/follow/sessions`,
-  `/api/follow/focus`, `/api/follow/back`, `/api/attention/editor`,
-  `/api/attention/page`), the event stream, and the
+  `/api/follow/focus`, `/api/follow/back`, `/api/follow/note`,
+  `/api/attention/editor`, `/api/attention/page`), the notes you write
+  (in memory, `note.go`), the event stream, and the
   host and origin guards.
 - `internal/watcher`: watches transcripts and PID files and tells the window
   to refresh.

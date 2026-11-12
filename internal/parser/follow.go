@@ -125,6 +125,9 @@ type Follow struct {
 	// Focus is the user's current stretch on this session (see focus.go),
 	// when it is still going; set by the HTTP handler.
 	Focus *FocusStretch `json:"focus,omitempty"`
+	// Note is a thought the user set down in the window for this session,
+	// kept until they mark it done; set by the HTTP handler.
+	Note string `json:"note,omitempty"`
 
 	pending  []pendingCall // tool calls of the latest turn awaiting a result
 	latest   *narrated     // the latest turn's newest narration

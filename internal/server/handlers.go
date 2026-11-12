@@ -30,6 +30,9 @@ type Handlers struct {
 	viewWin    ontop.Window         // the Softgaze window last seen in front
 	viewApp    string               // and its executable, in case the handle is reused
 	focusSaved map[string]time.Time // stretch -> when it was last recorded
+	notesMu    sync.Mutex
+	notes      map[string]note // session -> the note set down in it
+	noteSeq    uint64
 }
 
 // AttentionSource is what the window in front says about the user: an
