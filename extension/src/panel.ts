@@ -113,7 +113,7 @@ function embedHtml(url: string): string {
   </style>
 </head>
 <body>
-  <iframe id="page" src="${url}/follow.html" title="Softgaze"></iframe>
+  <iframe id="page" src="${url}/follow.html" title="Softgaze" allow="clipboard-write"></iframe>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const frame = document.getElementById('page');
