@@ -657,3 +657,20 @@ func TestFollowLongFinalAnswer(t *testing.T) {
 		t.Fatalf("headline is cut: %.80q ... (%d bytes)", f.Headline, len(f.Headline))
 	}
 }
+
+func TestFollowTitleFromRename(t *testing.T) {
+	claudeDir := t.TempDir()
+	proj := filepath.Join(claudeDir, "projects", "p")
+	os.MkdirAll(proj, 0o755)
+	lines := strings.Join([]string{human(1, "first task"),
+		`{"type":"custom-title","customTitle":"Old name","sessionId":"s"}`,
+		`{"type":"custom-title","customTitle":" Release notes ","sessionId":"s"}`}, "\n") + "\n"
+	os.WriteFile(filepath.Join(proj, "s.jsonl"), []byte(lines), 0o644)
+	f, err := FollowSession(claudeDir, "s")
+	if err != nil || f == nil {
+		t.Fatalf("FollowSession = %v, %v", f, err)
+	}
+	if f.Title != "Release notes" {
+		t.Errorf("title = %q, want the latest /rename", f.Title)
+	}
+}

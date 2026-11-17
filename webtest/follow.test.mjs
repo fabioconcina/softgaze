@@ -31,7 +31,7 @@ function session(state, extra = {}) {
     session_id: 's-' + state, state, project: P, cwd: P, task: P, prompt: P, running: true,
     headline: `${P}\n\n• ${P}\n  2. ${P}\n| ${P} | x |\n| y \\| z | ${P} |`, headline_at: P, turn_start: P, turn_end: P,
     trail: [P, { kind: 'tools', text: P }, { kind: 'msg', text: P }],
-    tools: P, activity: P, unsure: P, at_it_since: P, note: P,
+    tools: P, activity: P, unsure: P, at_it_since: P, note: P, name: P, title: P,
     background: { what: P, since: P, count: 2 },
     focus: { since: P, away_ms: P, away_since: P },
     ...extra,
@@ -273,3 +273,18 @@ test('quotes and inline code', () => {
   assert.match(pickerHTML(pick, 'other'), /<span class="sg-row-last">Run go test<\/span>/);
 });
 
+// A session is called by the name you gave it, else its /rename title, else
+// its project; beside a name, the project.
+test('session names', () => {
+  const { view, pickerHTML } = renderers();
+  const top = s => /<div class="sg-top">(.*?)<\/div>/s.exec(view({ session_id: 's', state: 'finished', project: 'mission-control', turn_start: 't', headline: 'x', ...s }).html)[1];
+  assert.match(top({}), /<span class="sg-name">mission-control<\/span>/);
+  assert.doesNotMatch(top({}), /sg-repo/);
+  assert.match(top({ title: 'From rename' }), /<span class="sg-name">From rename<\/span>.*<span class="sg-repo">mission-control<\/span>/s);
+  assert.match(top({ title: 'From rename', name: 'Mine' }), /<span class="sg-name">Mine<\/span>/);
+  assert.equal(view({ session_id: 's', state: 'finished', project: 'p', name: 'Mine', headline: 'x' }).title, 'Your turn · Mine');
+  const pick = { list: [{ session_id: 'a', state: 'finished', project: 'p', name: 'Abdul handoff' }], all: true };
+  const html = pickerHTML(pick, 'a');
+  assert.match(html, /<span class="sg-row-project">Abdul handoff<\/span><span class="sg-repo">p<\/span>/);
+  assert.match(html, /data-sg-act="rename" data-sg-id="a"[^>]*>Rename</);
+});

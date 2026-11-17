@@ -1,4 +1,5 @@
-// Package store keeps Softgaze's focus stretches in SQLite (WAL mode).
+// Package store keeps Softgaze's focus stretches, and the names the user
+// gives sessions, in SQLite (WAL mode).
 package store
 
 import (
@@ -35,6 +36,11 @@ func Open(dbPath string) (*Store, error) {
 			prompts INTEGER NOT NULL,
 			PRIMARY KEY (session_id, started_at)
 		);
+		CREATE TABLE IF NOT EXISTS session_names (
+			session_id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
 	`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrating database: %w", err)
@@ -46,11 +52,15 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// Prune drops stretches that started more than retentionDays ago.
+// Prune drops stretches that started, and names last set, more than
+// retentionDays ago.
 func (s *Store) Prune(retentionDays int) error {
 	cutoff := time.Now().AddDate(0, 0, -retentionDays).UTC().Format(time.RFC3339)
 	if _, err := s.db.Exec("DELETE FROM focus_stretches WHERE started_at < ?", cutoff); err != nil {
 		return fmt.Errorf("pruning focus stretches: %w", err)
+	}
+	if _, err := s.db.Exec("DELETE FROM session_names WHERE updated_at < ?", cutoff); err != nil {
+		return fmt.Errorf("pruning session names: %w", err)
 	}
 	return nil
 }

@@ -128,6 +128,11 @@ type Follow struct {
 	// Note is a thought the user set down in the window for this session,
 	// kept until they mark it done; set by the HTTP handler.
 	Note string `json:"note,omitempty"`
+	// Title is the name given to the session in Claude Code (/rename).
+	Title string `json:"title,omitempty"`
+	// Name is the name the user gave the session in softgaze, shown in
+	// place of the project; set by the HTTP handler.
+	Name string `json:"name,omitempty"`
 	// Aside: the user set this session aside (out of the switch list) and
 	// has not prompted it since; set by the HTTP handler.
 	Aside bool `json:"aside,omitempty"`
@@ -228,7 +233,10 @@ type followEntry struct {
 	IsCompactSummary bool      `json:"isCompactSummary"`
 	IsSidechain      bool      `json:"isSidechain"`
 	TurnOrigin       string    `json:"turnOrigin"`
-	Origin           *struct {
+	// CustomTitle is the name given with Claude Code's /rename (type
+	// "custom-title").
+	CustomTitle string `json:"customTitle"`
+	Origin      *struct {
 		Kind string `json:"kind"`
 	} `json:"origin"`
 	Message *struct {
@@ -257,6 +265,7 @@ type followBuilder struct {
 	lastActivity time.Time
 	lastPrompt   time.Time
 	task         string // the last prompt that reads like a request
+	title        string // the name given with /rename, if any
 	inTurn       bool
 	calls        map[string]*toolCall
 	background   map[string]*bgTask // by the tool-use ID that started it
@@ -326,6 +335,10 @@ func (b *followBuilder) consume(line []byte) {
 	// The launch folder, not the latest: Claude's shell can cd elsewhere.
 	if e.CWD != "" && b.cwd == "" {
 		b.cwd = e.CWD
+	}
+	if e.Type == "custom-title" {
+		b.title = strings.TrimSpace(e.CustomTitle)
+		return
 	}
 	if e.Type == "attachment" && !e.IsSidechain {
 		b.onAttachment(&e)
@@ -535,7 +548,7 @@ func (b *followBuilder) onPrompt(text string, ts time.Time) {
 // snapshot copies the builder into a Follow without live state (see
 // deriveState).
 func (b *followBuilder) snapshot() *Follow {
-	f := &Follow{CWD: b.cwd, LastActivity: b.lastActivity}
+	f := &Follow{CWD: b.cwd, LastActivity: b.lastActivity, Title: b.title}
 	if !b.lastPrompt.IsZero() {
 		lp := b.lastPrompt
 		f.LastPromptAt = &lp

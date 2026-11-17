@@ -67,6 +67,7 @@ func (h *Handlers) HandleFollow(w http.ResponseWriter, r *http.Request) {
 	}
 	if f != nil {
 		f.Note = h.noteFor(f)
+		h.nameSessions(f)
 	}
 	writeJSON(w, map[string]*parser.Follow{"session": f})
 }
@@ -387,5 +388,6 @@ func (h *Handlers) HandleFollowSessions(w http.ResponseWriter, r *http.Request) 
 		}
 		f.Aside = h.isAside(f)
 	}
+	h.nameSessions(sessions...)
 	writeJSON(w, resp)
 }

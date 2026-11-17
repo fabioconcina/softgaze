@@ -159,11 +159,18 @@ window follows none: it waits for your next prompt instead of jumping to
 another session. softgaze keeps this in memory only; a restart brings
 every session back.
 
+A session is shown by its project until it has a name. Give it one with
+**Rename** on its card (or R), next to Set aside: the name takes the
+project's place in the window and the list, with the project beside it.
+An empty name brings the project back. A name given with Claude Code's
+`/rename` shows too, unless you named the session here. softgaze keeps the
+names in its database, so they survive a restart.
+
 | Key | What it does |
 | --- | --- |
 | Enter | Go to the session's VS Code window and its Claude Code tab |
 | Ctrl+Alt+J | The same from softgaze; from VS Code, back to softgaze |
-| S | Switch session (in the list, 1-9 picks a card, the arrows move between cards, X sets a card aside) |
+| S | Switch session (in the list, 1-9 picks a card, the arrows move between cards, R renames a card, X sets it aside) |
 | Left / Right | Step through the sessions of the current work period |
 | F | Toggle full screen |
 | N | Write a note while Claude works (Enter keeps it, Esc leaves it) |
@@ -228,8 +235,8 @@ Optional, in `~/.softgaze/config.json`. Every field has a default:
 }
 ```
 
-The database only holds focus stretches for the minutes counter, pruned
-after 30 days. If you change the port, set `softgaze.port` in VS Code to
+The database only holds focus stretches for the minutes counter and the
+names you give sessions, pruned after 30 days. If you change the port, set `softgaze.port` in VS Code to
 match.
 
 ## Development
@@ -253,16 +260,17 @@ Pure Go, no CGO. The window is plain JavaScript with no dependencies.
   stretches (`focus.go`).
 - `internal/server`: the HTTP API (`/api/follow`, `/api/follow/sessions`,
   `/api/follow/focus`, `/api/follow/back`, `/api/follow/note`,
-  `/api/follow/aside`, `/api/attention/editor`, `/api/attention/page`),
-  the notes you write and the sessions you set aside (in memory, `note.go`,
-  `aside.go`), the event stream, and the host and origin guards.
+  `/api/follow/aside`, `/api/follow/name`, `/api/attention/editor`,
+  `/api/attention/page`), the notes you write and the sessions you set
+  aside (in memory, `note.go`, `aside.go`), the names you give sessions
+  (`name.go`), the event stream, and the host and origin guards.
 - `internal/watcher`: watches transcripts and PID files and tells the window
   to refresh.
 - `internal/attention`: which window is in front. Windows and X11 from window
   titles; macOS from the app in front plus the reports from the extension and
   the page (`hints.go`).
 - `internal/ontop`: moving between softgaze and VS Code.
-- `internal/store`: the SQLite database of focus stretches.
+- `internal/store`: the SQLite database of focus stretches and session names.
 - `internal/service`: start on login, per platform.
 - `web/follow.html`, `web/follow.js`: the window, embedded in the binary.
 - `webtest/`: Node tests for the window's renderers.

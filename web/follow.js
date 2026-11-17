@@ -85,12 +85,19 @@
 /* Set aside: in the card's bottom corner, only on the card under the
    pointer or with the keyboard. */
 .sg-card { position: relative; min-width: 0; display: flex; }
-.sg-root .sg-aside { display: none; position: absolute; right: 3px; bottom: 3px; font-size: 0.75em; color: var(--sg-dim);
+.sg-acts { display: none; position: absolute; right: 3px; bottom: 3px; font-size: 0.75em; color: var(--sg-dim);
   padding: 0.3em 0.75em 0.4em 0.6em; border-radius: 0 0 6px 0;
   background: linear-gradient(rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.035)) var(--sg-bg); }
-.sg-card:hover .sg-aside { background: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)) var(--sg-bg); }
-.sg-card:hover .sg-aside, .sg-card:focus-within .sg-aside { display: block; }
-.sg-root .sg-aside:hover { color: var(--sg-bright); text-decoration: underline; }
+.sg-card:hover .sg-acts { background: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)) var(--sg-bg); }
+.sg-card:hover .sg-acts, .sg-card:focus-within .sg-acts { display: block; }
+.sg-root .sg-acts button { color: var(--sg-dim); }
+.sg-root .sg-acts button:hover { color: var(--sg-bright); text-decoration: underline; }
+/* Naming a session: a box in place of its card. */
+.sg-naming { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.3em; padding: 0.55em 0.75em 0.7em; font-size: 0.85em;
+  border-radius: 8px; background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.06); }
+.sg-renaming > .sg-row, .sg-renaming > .sg-acts { display: none !important; }
+/* The project, beside a session's own name. */
+.sg-repo { color: var(--sg-dim); font-weight: 400; font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
 /* The card's top edge takes its session's color, like the window's. */
 .sg-c-working { --sg-card: var(--sg-work); }
 .sg-c-needs_you { --sg-card: var(--sg-needs); }
@@ -167,10 +174,10 @@
    on what to do (which otherwise takes the free space above itself). */
 .sg-root .sg-mynote, .sg-noting { margin-top: auto; }
 .sg-root .sg-mynote:not(.sg-drop) ~ .sg-foot, .sg-noting ~ .sg-foot { margin-top: 0.15em; }
-.sg-noting input { font: inherit; color: var(--sg-bright); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.14);
+.sg-noting input, .sg-naming input { font: inherit; color: var(--sg-bright); background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 6px; padding: 0.4em 0.6em; width: 100%; box-sizing: border-box; }
-.sg-noting input:focus { outline: 2px solid var(--sg-work); outline-offset: 1px; }
-.sg-noting input::placeholder { color: var(--sg-dim); }
+.sg-noting input:focus, .sg-naming input:focus { outline: 2px solid var(--sg-work); outline-offset: 1px; }
+.sg-noting input::placeholder, .sg-naming input::placeholder { color: var(--sg-dim); }
 .sg-noting-keys { color: var(--sg-dim); font-size: 0.85em; }
 .sg-editing .sg-mynote, .sg-editing .sg-noteoffer { display: none; }
 /* What Claude is doing in a long silence: words, so no arrow. */
@@ -216,6 +223,10 @@
   // Where there is no room for a table (earlier messages, the switch list):
   // each row as its cells in a line, "a · b".
   const rowsAsText = s => String(s).split('\n').map(l => (isRow(l) ? cells(l).filter(Boolean).join(' · ') : l)).join('\n');
+  // What a session is called: the name you gave it here, else its name in
+  // Claude Code (/rename), else its project. Beside a name, the project.
+  const nameOf = s => s.name || s.title || s.project;
+  const repoOf = s => (nameOf(s) !== s.project ? `<span class="sg-repo">${esc(s.project)}</span>` : '');
   // A blockquote line ("> text", or ">" for a gap in it).
   const isQuote = l => /^>( |$)/.test(l);
   // Claude's words as text, escaped, with `code` set apart (the only inline
@@ -374,7 +385,7 @@
       return { state: 'none', title: 'Softgaze', html: '<div class="sg-empty"><strong>No Claude Code session is running</strong>Send a prompt: this window locks onto that session.</div>' };
     }
     if (f.state === 'empty') {
-      return { state: 'none', title: 'Softgaze', html: `<div class="sg-empty"><strong>${esc(f.project)}</strong>Waiting for your first prompt.</div>` };
+      return { state: 'none', title: 'Softgaze', html: `<div class="sg-empty"><strong>${esc(nameOf(f))}</strong>Waiting for your first prompt.</div>` };
     }
     // You set aside the session the window followed (in the switch list).
     if (f.free) {
@@ -458,12 +469,12 @@
         '<button data-sg-act="notedone" title="Clear the note">Done</button></span></div>';
     if (!f.note && (doingNow || f.state === 'background')) cta += ' <span class="sg-noteoffer">Something on your mind? <button class="sg-notelink" data-sg-act="note" title="N">Note it</button></span>';
     const html = `
-      <div class="sg-top"><button class="sg-project sg-switch" data-sg-act="pick"><span class="sg-name">${esc(f.project)}</span><span class="sg-chev" aria-hidden="true">&#9662;</span></button><button class="sg-editor" data-sg-act="editor">VS Code &#8599;</button><span class="sg-state">${label}</span></div>
+      <div class="sg-top"><button class="sg-project sg-switch" data-sg-act="pick"><span class="sg-name">${esc(nameOf(f))}</span><span class="sg-chev" aria-hidden="true">&#9662;</span></button>${repoOf(f)}<button class="sg-editor" data-sg-act="editor">VS Code &#8599;</button><span class="sg-state">${label}</span></div>
       ${(f.task || f.prompt) ? `<div class="sg-task"><b>Your task:</b> ${esc(f.task || f.prompt)}</div>` : ''}
       ${trail}<div class="sg-headline">${headline}</div>${tools}${extra}
       ${f.at_it_since && GO[f.state] ? `<div class="sg-break" data-sg-break="${esc(f.at_it_since)}" data-sg-turn="${esc(f.turn_start || '')}">You've been at it since ${esc(when(f.at_it_since))}. A short break would fit here.</div>` : ''}${note}
       <div class="sg-cta sg-foot"><span class="sg-foot-main${f.state === 'working' || f.state === 'background' ? ' sg-hint' : ''}">${cta}</span><span class="sg-keys">S switch · &#8592; &#8594; · F full screen · Enter VS Code · Ctrl+Alt+J both ways · N note · ? hide</span>${focusSlot(f)}</div>`;
-    return { state: f.state, title: (TITLES[f.state] || 'Softgaze') + ' · ' + f.project, html };
+    return { state: f.state, title: (TITLES[f.state] || 'Softgaze') + ' · ' + nameOf(f), html };
   }
 
   // Where the focus stretch goes; mount() fills it in and keeps it current,
@@ -519,11 +530,13 @@
       const cur = s.session_id === followed;
       const label = cur ? 'Following' : away(s) ? 'Set aside' : TITLES[s.state] || '';
       return `<div class="sg-card"><button class="sg-row sg-c-${esc(s.state)}${cur ? ' sg-current' : ''}${inPeriod(s) && !away(s) ? '' : ' sg-older'}" data-sg-act="choose" data-sg-id="${esc(s.session_id)}" title="${esc(s.cwd)}">` +
-        `<span class="sg-row-key" aria-hidden="true">${i < 9 ? i + 1 : ''}</span><span class="sg-row-project">${esc(s.project)}</span>` +
+        `<span class="sg-row-key" aria-hidden="true">${i < 9 ? i + 1 : ''}</span><span class="sg-row-project">${esc(nameOf(s))}</span>${repoOf(s)}` +
         `<span class="sg-row-state sg-s-${away(s) ? 'aside' : esc(s.state)}">${esc(label)}</span>` +
         `<span class="sg-row-task">${esc(s.task || s.prompt)}</span>` +
         (s.headline ? `<span class="sg-row-last">${esc(lastWords(s.headline))}</span>` : '') + '</button>' +
-        (away(s) ? '' : `<button class="sg-aside" data-sg-act="aside" data-sg-id="${esc(s.session_id)}" title="Out of this list until you prompt it again (X)">Set aside</button>`) +
+        `<span class="sg-acts"><button data-sg-act="rename" data-sg-id="${esc(s.session_id)}" title="Give this session a name of its own (R)">Rename</button>` +
+        (away(s) ? '' : ` · <button class="sg-aside" data-sg-act="aside" data-sg-id="${esc(s.session_id)}" title="Out of this list until you prompt it again (X)">Set aside</button>`) +
+        '</span>' +
         '</div>';
     }).join('');
     let extra = '';
@@ -893,6 +906,49 @@
       const el = rows[Math.min(at, rows.length - 1)] || container.querySelector('.sg-more, .sg-cancel');
       if (el) el.focus();
     }
+    // Rename (a card's Rename, or R): a box in place of the card. Enter
+    // keeps the name, Esc leaves it; an empty name brings back the
+    // session's own (from Claude Code, or its project).
+    let naming = null; // the session being named and its input
+    function startRename(id) {
+      const s = picking && !naming && choices.find(c => c.session_id === id);
+      const card = s && [...container.querySelectorAll('.sg-card')].find(c => c.querySelector('.sg-row').dataset.sgId === id);
+      if (!card) return;
+      const box = doc.createElement('div');
+      box.className = 'sg-naming';
+      box.innerHTML = '<input type="text" maxlength="60" aria-label="Session name">' +
+        '<span class="sg-noting-keys">Enter keeps it · Esc leaves it · empty for the project</span>';
+      const input = box.firstChild;
+      input.value = s.name || '';
+      input.placeholder = s.title || s.project;
+      input.addEventListener('keydown', e => {
+        e.stopPropagation(); // typing is not the list's keys
+        if (e.isComposing) return;
+        if (e.key === 'Enter') { e.preventDefault(); endRename(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); endRename(false); }
+      });
+      input.addEventListener('blur', () => endRename(true));
+      naming = { s, input };
+      card.classList.add('sg-renaming');
+      card.appendChild(box);
+      input.focus();
+    }
+    function endRename(keep) {
+      if (!naming) return;
+      const { s, input } = naming;
+      naming = null;
+      const name = input.value.replace(/\s+/g, ' ').trim();
+      const card = `.sg-row[data-sg-id="${s.session_id}"]`;
+      if (keep && name !== (s.name || '')) {
+        const was = s.name;
+        s.name = name;
+        if (latest && latest.session_id === s.session_id) latest = { ...latest, name };
+        fetch('/api/follow/name', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session: s.session_id, name }),
+        }).then(r => { if (!r.ok) throw new Error(); }).catch(() => { s.name = was; if (picking && !naming) showPicker(card); });
+      }
+      if (picking) showPicker(card);
+    }
     function tellAside(session, aside, failed) {
       fetch('/api/follow/aside', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session, aside }),
@@ -966,6 +1022,7 @@
       else if (act === 'cancel') closePicker();
       else if (act === 'choose') closePicker(t.dataset.sgId);
       else if (act === 'aside') setAside(t.dataset.sgId);
+      else if (act === 'rename') startRename(t.dataset.sgId);
       else if (act === 'note') openNote();
       else if (act === 'notecopy') copyNote(t);
       else if (act === 'notedone') doneNote();
@@ -973,8 +1030,8 @@
     // Keys: S opens the switch list, arrows step through the sessions of the
     // work period, Enter goes to VS Code, F toggles full screen, N sets
     // down a note while you wait, ? shows or hides the keys; in the list,
-    // 1-9 pick a card, the arrows move between cards and X sets the card
-    // with the keyboard aside.
+    // 1-9 pick a card, the arrows move between cards, R renames the card
+    // with the keyboard and X sets it aside.
     // Ctrl+Alt+J goes to VS Code too: the same key brings you back (the
     // extension's Softgaze: Toggle), so one key goes both ways.
     // The item in the nearest row below (or above) from, closest to it
@@ -1001,6 +1058,12 @@
       const onButton = e.target && e.target.closest && e.target.closest('button');
       if (picking) {
         if (e.key === 'Escape') { e.preventDefault(); closePicker(); return; }
+        if (e.key === 'r' || e.key === 'R') {
+          const card = doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.sg-card');
+          const row = card && card.querySelector('.sg-row');
+          if (row) { e.preventDefault(); startRename(row.dataset.sgId); }
+          return;
+        }
         if (e.key === 'x' || e.key === 'X' || e.key === 'Delete') {
           const card = doc.activeElement && doc.activeElement.closest && doc.activeElement.closest('.sg-card');
           const row = card && card.querySelector('.sg-row');
