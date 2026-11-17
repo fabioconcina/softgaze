@@ -935,13 +935,23 @@ var (
 	listItemRe  = regexp.MustCompile(`^(?:[-*+•]|\d+[.)])\s+`)
 	tableRuleRe = regexp.MustCompile(`^\|?[\s:|-]+\|[\s:|-]*$`)
 	sentenceRe  = regexp.MustCompile(`[.!?:](?:\s|$)`)
+	// A blockquote's markers ("> ", or "> > " nested), and __emphasis__
+	// (not the __ inside a name like mcp__server__tool).
+	quoteRe   = regexp.MustCompile(`^(?:>[ \t]?)+`)
+	underEmRe = regexp.MustCompile(`(^|[^\w])__([^_\s](?:[^_]*[^_\s])?)__([^\w]|$)`)
 )
 
 // plain flattens a bit of markdown into one line of text for a small window.
+// Inline `code` keeps its backticks, for the window to set it apart, and
+// what is inside stays as written: ** and __ there are part of a name.
 func plain(s string) string {
 	s = mdLinkRe.ReplaceAllString(s, "$1")
 	s = mdLeadRe.ReplaceAllString(s, "")
-	s = strings.NewReplacer("**", "", "__", "", "`", "").Replace(s)
+	parts := strings.Split(s, "`")
+	for i := 0; i < len(parts); i += 2 { // outside code
+		parts[i] = underEmRe.ReplaceAllString(strings.ReplaceAll(parts[i], "**", ""), "$1$2$3")
+	}
+	s = strings.Join(parts, "`")
 	return strings.TrimSpace(spacesRe.ReplaceAllString(s, " "))
 }
 
@@ -949,12 +959,19 @@ func plain(s string) string {
 // with markdown flattened, and no code blocks or table rules. Where the
 // message leaves a blank line (or a code block) there is one empty line.
 // List items keep their marker ("• " for a bullet, "2. " for a step) and
-// their nesting, two spaces per level below the first.
+// their nesting, two spaces per level below the first. A blockquote's lines
+// start with "> " (a blank line inside it is ">"), whatever they hold.
 func msgLines(text string) []string {
 	var out []string
 	var indents []int // the open list levels, by their indentation
-	fence, gap := false, false
+	fence, gap, inQuote := false, false, false
 	for _, ln := range strings.Split(text, "\n") {
+		raw := strings.TrimLeft(ln, " \t")
+		q := quoteRe.FindString(raw)
+		quote := q != ""
+		if quote {
+			ln = raw[len(q):] // what the quote holds, with its own indentation
+		}
 		t := strings.TrimSpace(ln)
 		if strings.HasPrefix(t, "```") {
 			fence = !fence
@@ -971,6 +988,9 @@ func msgLines(text string) []string {
 		mark := listItemRe.FindString(t)
 		if t = plain(t); t == "" {
 			continue
+		}
+		if quote != inQuote {
+			indents = indents[:0] // a list does not run into or out of a quote
 		}
 		if mark == "" {
 			indents = indents[:0]
@@ -991,10 +1011,18 @@ func msgLines(text string) []string {
 			t = strings.Repeat("  ", min(len(indents)-1, 3)) + m + " " + t
 		}
 		if gap {
-			out = append(out, "")
+			if quote && inQuote {
+				out = append(out, ">") // a gap inside the quote
+			} else {
+				out = append(out, "")
+			}
 			gap = false
 		}
+		if quote {
+			t = "> " + t
+		}
 		out = append(out, t)
+		inQuote = quote
 	}
 	return out
 }

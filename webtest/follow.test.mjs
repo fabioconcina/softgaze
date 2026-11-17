@@ -245,3 +245,31 @@ test('table rows become a table', () => {
   const pick = { list: [{ session_id: 's', state: 'finished', project: 'p', headline: 'x\n| The page | 302 |' }], all: true };
   assert.match(pickerHTML(pick, 'other'), /<span class="sg-row-last">The page · 302<\/span>/);
 });
+
+// A quote ("> " lines, ">" for a gap in it) is a block with what it holds
+// laid out the same; `code` is set apart. Elsewhere both read as plain text.
+test('quotes and inline code', () => {
+  const { view, pickerHTML } = renderers();
+  const headline = (text, state = 'working') => /<div class="sg-headline">(.*)<\/div>/s.exec(view({
+    session_id: 's', state, project: 'p', turn_start: 't1', turn_end: 't2', headline: text, trail: [],
+  }).html)[1];
+  const t = headline('Post this:\n\n> Title\n>\n> • run `/mcp__mc__plan` now\n>   • nested\n\nThen wait.');
+  assert.match(t, /<div>Post this:<\/div><div class="sg-gap"><\/div><div class="sg-quote"><div>Title<\/div><div class="sg-gap"><\/div>/);
+  assert.match(t, /<div class="sg-li"><span class="sg-mk">•<\/span>run <code>\/mcp__mc__plan<\/code> now<\/div>/);
+  assert.match(t, /<div class="sg-li" style="margin-left:1.4em"><span class="sg-mk">•<\/span>nested<\/div><\/div><div class="sg-gap"><\/div><div>Then wait\.<\/div>/);
+  assert.doesNotMatch(t, /&gt;/, 'no quote marks left');
+  // A one-line quote, and a final message cut before it.
+  assert.match(headline('> Just this.', 'finished'), /^<div class="sg-quote"><div>Just this\.<\/div><\/div>/);
+  assert.match(headline('…> the end\n> of it', 'finished'), /^<div>…<\/div><div class="sg-quote"><div>the end<\/div><div>of it<\/div><\/div>/);
+  // A one-line message keeps its quotation marks, code set apart inside.
+  assert.match(headline('Run `make test`.', 'finished'), /^&ldquo;Run <code>make test<\/code>\.&rdquo;/);
+  // Code is escaped like everything else.
+  assert.match(headline('`<b>x</b>`'), /<code>&lt;b&gt;x&lt;\/b&gt;<\/code>/);
+  // Earlier messages and the switch list: plain text.
+  const trail = view({ session_id: 's', state: 'working', project: 'p', turn_start: 't1', headline: 'x',
+    trail: ['> quoted `code`', { kind: 'msg', text: 'See `a`:\n> b' }] }).html;
+  assert.match(trail, /<div class="sg-trail"><div>quoted code<\/div><div>See a:\nb<\/div><\/div>/);
+  const pick = { list: [{ session_id: 's', state: 'finished', project: 'p', headline: 'x\n> Run `go test`' }], all: true };
+  assert.match(pickerHTML(pick, 'other'), /<span class="sg-row-last">Run go test<\/span>/);
+});
+

@@ -133,6 +133,11 @@
 .sg-li { position: relative; padding-left: 1.4em; }
 .sg-li + .sg-li { margin-top: 0.25em; }
 .sg-mk { position: absolute; left: 0; width: 1.1em; text-align: right; color: var(--sg-dim); font-variant-numeric: tabular-nums; }
+/* A quote (often a draft for you to pass on): a quiet bar on its left. */
+.sg-quote { margin: 0.2em 0; padding-left: 0.8em; border-left: 3px solid rgba(255, 255, 255, 0.14); }
+/* Inline code (a command, a name), in a quiet monospace. */
+.sg-root code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+  padding: 0.05em 0.3em; border-radius: 4px; background: rgba(255, 255, 255, 0.07); }
 /* A table: quiet column heads and a hairline between rows, no grid. It is
    as wide as its columns (the wrapper takes the message's width). */
 .sg-table { border-collapse: collapse; margin: 0.15em 0; font-size: 0.92em; white-space: normal; }
@@ -211,28 +216,43 @@
   // Where there is no room for a table (earlier messages, the switch list):
   // each row as its cells in a line, "a · b".
   const rowsAsText = s => String(s).split('\n').map(l => (isRow(l) ? cells(l).filter(Boolean).join(' · ') : l)).join('\n');
+  // A blockquote line ("> text", or ">" for a gap in it).
+  const isQuote = l => /^>( |$)/.test(l);
+  // Claude's words as text, escaped, with `code` set apart (the only inline
+  // markup softgaze passes on).
+  const inl = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Claude's words in a line of their own (earlier messages, the switch
+  // list): no quote marks or backticks, table rows as "a · b".
+  const flat = s => rowsAsText(String(s).split('\n').map(l => (isQuote(l) ? l.slice(2) : l)).join('\n')).replace(/`([^`]+)`/g, '$1');
   // Rows in a run make a table; the first is its head (markdown tables
   // always have one), unless the run is the cut-off rest of a table.
   function tableHTML(rows, head) {
     const cols = Math.max(...rows.map(r => r.length));
-    const tr = (r, tag) => '<tr>' + Array.from({ length: cols }, (_, k) => `<${tag}>${esc(r[k] || '')}</${tag}>`).join('') + '</tr>';
+    const tr = (r, tag) => '<tr>' + Array.from({ length: cols }, (_, k) => `<${tag}>${inl(r[k] || '')}</${tag}>`).join('') + '</tr>';
     return '<div class="sg-tw"><table class="sg-table">' + (head ? `<thead>${tr(rows[0], 'th')}</thead>` : '') +
       `<tbody>${rows.slice(head ? 1 : 0).map(r => tr(r, 'td')).join('')}</tbody></table></div>`;
   }
   // Claude's message as blocks: its lines, a gap for each empty line, list
   // items ("• " or "2. ", two leading spaces per nesting level) with their
-  // marker set apart, and tables.
+  // marker set apart, tables, and quotes (what they hold laid out the same).
   function msgHTML(text) {
     const lines = text.split('\n');
     // A message cut to fit starts with "…" or ends with " …": set apart
-    // from a table row, so the row still reads as one.
+    // from a table row or a quote, so it still reads as one.
     let cut = false, more = false;
-    if (lines[0].startsWith('…') && isRow(lines[0].slice(1))) { lines[0] = lines[0].slice(1); cut = true; }
+    if (lines[0].startsWith('…') && (isRow(lines[0].slice(1)) || isQuote(lines[0].slice(1)))) { lines[0] = lines[0].slice(1); cut = true; }
     const end = lines.length - 1;
     if (isRow(lines[end]) && lines[end].endsWith(' …')) { lines[end] = lines[end].slice(0, -2); more = true; }
     let html = cut ? '<div>…</div>' : '';
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
+      if (isQuote(l)) {
+        const held = [];
+        while (i < lines.length && isQuote(lines[i])) held.push(lines[i++].slice(2));
+        i--;
+        html += `<div class="sg-quote">${msgHTML(held.join('\n'))}</div>`;
+        continue;
+      }
       if (isRow(l)) {
         const rows = [], start = i;
         while (i < lines.length && isRow(lines[i])) rows.push(cells(lines[i++]));
@@ -242,9 +262,9 @@
       }
       if (!l.trim()) { html += '<div class="sg-gap"></div>'; continue; }
       const m = /^( *)(•|\d+\.) (.*)$/.exec(l);
-      if (!m) { html += `<div>${esc(l)}</div>`; continue; }
+      if (!m) { html += `<div>${inl(l)}</div>`; continue; }
       const lvl = Math.min(3, m[1].length >> 1);
-      html += `<div class="sg-li"${lvl ? ` style="margin-left:${lvl * 1.4}em"` : ''}><span class="sg-mk">${esc(m[2])}</span>${esc(m[3])}</div>`;
+      html += `<div class="sg-li"${lvl ? ` style="margin-left:${lvl * 1.4}em"` : ''}><span class="sg-mk">${esc(m[2])}</span>${inl(m[3])}</div>`;
     }
     return html + (more ? '<div>…</div>' : '');
   }
@@ -361,8 +381,9 @@
       return { state: 'none', title: 'Softgaze', html: '<div class="sg-empty"><strong>Not following a session</strong>The next session you prompt shows here. S picks one now.</div>' };
     }
     const n = f.needs_you;
-    // A one-line message is quoted; a longer one is laid out as blocks.
-    const said = t => t.includes('\n') ? msgHTML(t) : '&ldquo;' + esc(t) + '&rdquo;';
+    // A one-line message is quoted; a longer one (or a quote) is laid out
+    // as blocks.
+    const said = t => t.includes('\n') || isQuote(t) ? msgHTML(t) : '&ldquo;' + inl(t) + '&rdquo;';
     let label, headline, cta = '', extra = '';
     switch (f.state) {
       case 'working':
@@ -379,9 +400,9 @@
         break;
       case 'needs_you':
         label = 'Needs you';
-        headline = n && n.kind === 'approval' ? 'Wants to run: ' + esc(n.text) : esc(n ? n.text : 'Claude Code is waiting for you');
+        headline = n && n.kind === 'approval' ? 'Wants to run: ' + esc(n.text) : n ? inl(n.text) : 'Claude Code is waiting for you';
         if (n && n.options && n.options.length) extra = `<div class="sg-options">${n.options.map(esc).join(' · ')}</div>`;
-        if (n && n.context) extra += `<div class="sg-qctx">${esc(n.context)}</div>`;
+        if (n && n.context) extra += `<div class="sg-qctx">${inl(n.context)}</div>`;
         cta = 'Answer in Claude Code';
         break;
       case 'finished':
@@ -414,8 +435,8 @@
     }
     // What Claude said before the headline, kept in every state.
     const tr = f.trail || [];
-    const item = t => typeof t === 'string' ? `<div>${esc(rowsAsText(t))}</div>`
-      : `<div${t.kind === 'tools' ? ' class="sg-tl"' : ''}>${esc(rowsAsText(t.text).replace(/\n\s*\n/g, '\n'))}</div>`;
+    const item = t => typeof t === 'string' ? `<div>${esc(flat(t))}</div>`
+      : `<div${t.kind === 'tools' ? ' class="sg-tl"' : ''}>${esc(flat(t.text).replace(/\n\s*\n/g, '\n'))}</div>`;
     const trail = tr.length ? `<div class="sg-trail">${tr.map(item).join('')}</div>` : '';
     // The tools used since the latest message, while Claude is still at it,
     // and only once that message is half a minute old: then it says Claude
@@ -482,7 +503,7 @@
   function lastWords(text) {
     const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
     let t = lines.length ? lines[lines.length - 1] : '';
-    t = rowsAsText(t);
+    t = flat(t);
     if (t.length > 220) { t = t.slice(-220); const i = t.indexOf(' '); t = '…' + (i > 0 ? t.slice(i + 1) : t); }
     return t;
   }
