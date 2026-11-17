@@ -1,28 +1,22 @@
-## Easier long waits
+## Your sessions, your way
 
-This release is about the long stretches while Claude works: the window
-now says what Claude is doing when it goes quiet, and gives you a place to
-set a thought down.
+This release is about the sessions themselves: what they are called, which
+ones you see, and how Claude's messages read in the window.
 
-- **A note while you wait.** In a long wait the bottom line asks
-  "Something on your mind? Note it". Press N and write one line, so you
-  can let the thought go. At your turn the note is set apart, with
-  **Copy** and **Done**; until you mark it done it comes back turn after
-  turn. One note per session, kept in memory only, never typed into
-  Claude Code.
-- **A long silence says what Claude is doing.** After half a minute with
-  nothing new from Claude, a quiet line names the step that is running
-  ("Run the test suite · 6 min so far") or the kinds of steps since its
-  last words. After 15 minutes with nothing new it says Claude may be
-  stuck.
-- **Cards in the switch list.** Each session is a card with its project,
-  state, task and Claude's last words, edged in the session's color. The
-  arrow keys move between cards as they are laid out.
-- **Tables** in Claude's messages are drawn as tables, not as rows of
-  pipes.
-- **Keep on top is gone.** The window no longer floats above other
-  windows: no Picture-in-Picture in Chrome and Edge, and no always on top
-  in other browsers, where nothing could undo it.
+- **Names for sessions.** A session is shown by its project until you name
+  it: **Rename** on its card in the switch list (or R). The name takes the
+  project's place in the window, the list and the title, with the project
+  beside it. A name given with Claude Code's `/rename` shows too. Names are
+  kept across restarts.
+- **Set a session aside.** A session you keep open but are done with for
+  now can leave the switch list and the arrow keys: **Set aside** on its
+  card (or X). It comes back by itself when you prompt it again. Set aside
+  the session the window follows and the window follows none, waiting for
+  your next prompt instead of jumping to another one.
+- **Quotes and inline code** in Claude's messages. A quoted block (often a
+  draft for you to pass on) is drawn as a quote, with its lists laid out,
+  and `code` shows in a quiet monospace. Names like
+  `mcp__server__tool` keep their underscores.
 
 To update:
 
@@ -32,5 +26,4 @@ softgaze service restart
 ```
 
 Without Homebrew, replace the binary with the new one below and run
-`softgaze service restart`. Copy on a note inside the VS Code panel needs
-the Softgaze extension 0.1.1.
+`softgaze service restart`. No extension update is needed.
